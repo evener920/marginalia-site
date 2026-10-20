@@ -5,7 +5,7 @@
 
 backend:
   name: github
-  repo: evener920/marginalia
+  repo: evener920/marginalia-site
   branch: main
   # 自建 OAuth 代理（Cloudflare Worker）：Decap 会把 base_url 与 auth_endpoint 拼接
   # （auth_endpoint 是路径不是完整 URL，默认 "auth"）。Worker 端 /auth 发起授权、/callback 换 token。
