@@ -1,0 +1,71 @@
+---
+layout: default
+---
+<div class="post-wrap">
+  <aside class="post-toc" aria-label="目录" hidden>
+    <details class="toc-details" open>
+      <summary class="toc-title">本页目录</summary>
+      <nav id="toc"></nav>
+    </details>
+  </aside>
+
+  <article class="post">
+    <header class="post-header">
+      <p class="kicker">页边批注 · A Note in the Margin</p>
+      <h1>{{ page.title }}</h1>
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.tags and page.tags.size > 0 %}
+          <span class="dot">·</span>
+          <span class="tags-inline">
+            {% for t in page.tags %}<span>#{{ t }}</span>{% unless forloop.last %} <span class="dot">·</span> {% endunless %}{% endfor %}
+          </span>
+        {% endif %}
+        {% if page.author %}
+          <span class="dot">·</span><span>{{ page.author }}</span>
+        {% endif %}
+      </p>
+    </header>
+    <div class="post-body">
+      {{ content }}
+    </div>
+    <footer class="post-footer">
+      {%- assign rel = "" | split: "" -%}
+      {%- if page.tags and page.tags.size > 0 -%}
+        {%- for p in site.posts -%}
+          {%- if p.url == page.url %}{% continue %}{% endif -%}
+          {%- if p.tags contains 'ai-hot' %}{% continue %}{% endif -%}
+          {%- assign score = 0 -%}
+          {%- for t in page.tags -%}
+            {%- if p.tags contains t %}{% assign score = score | plus: 1 %}{% endif -%}
+          {%- endfor -%}
+          {%- if score > 0 -%}
+            {%- capture key %}{{ score }}::{{ p.url }}::{{ p.title }}::{{ p.date | date: '%Y-%m-%d' }}{% endcapture -%}
+            {%- assign rel = rel | push: key -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- assign rel = rel | sort | reverse -%}
+      {%- endif -%}
+      {%- if rel.size > 0 -%}
+      <nav class="related" aria-label="相关批注">
+        <p class="related-title">相关批注 · Related</p>
+        <ul class="related-grid" role="list">
+          {%- for key in rel limit: 3 -%}
+            {%- assign parts = key | split: '::' -%}
+            <li><a href="{{ parts[1] | relative_url }}">
+              <span class="r-title">{{ parts[2] }}</span>
+              <span class="r-date">{{ parts[3] }}</span>
+            </a></li>
+          {%- endfor -%}
+        </ul>
+      </nav>
+      {%- endif -%}
+      {% include reactions.html slug=page.url title=page.title url=page.url %}
+      <p>
+        <a class="back" href="{{ '/' | relative_url }}">← 回到所有批注</a>
+      </p>
+    </footer>
+  </article>
+</div>
+
+<script src="{{ '/assets/js/toc.js' | relative_url }}" defer></script>

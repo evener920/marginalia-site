@@ -1,0 +1,80 @@
+---
+layout: default
+title: 索引 · Index
+description: "Marginalia 全站索引：词云、分类过滤、按年时间线。一页看尽所有批注、晨报、视频、游戏、应用与 Showcase。"
+permalink: /archive/
+---
+<div class="wrap wrap--wide archive">
+  <header class="page-header archive-header">
+    <h1>索引 <span class="archive-en">Index</span></h1>
+    <p class="archive-lede">一页看尽全站。点词云或标签过滤，<kbd>Ctrl</kbd>+<kbd>K</kbd> 全文搜索。</p>
+  </header>
+
+  <section class="cloud-section" aria-label="标签词云">
+    <canvas id="tag-cloud" aria-label="标签词云：点击任意词按标签过滤"></canvas>
+  </section>
+
+  <section class="archive-controls" aria-label="过滤器">
+    <div class="archive-chips" id="type-chips"></div>
+    <div class="archive-active" id="active-filters" hidden></div>
+  </section>
+
+  <section id="archive-list" class="archive-list" aria-live="polite"></section>
+</div>
+
+{% capture arc %}
+{%- for post in site.posts -%}
+  {%- assign is_hot = false -%}
+  {%- if post.tags contains 'ai-hot' %}{% assign is_hot = true %}{% endif -%}
+  {
+    "type": {% if is_hot %}"ai-hot"{% else %}"note"{% endif %},
+    "title": {{ post.title | jsonify }},
+    "url": {{ post.url | relative_url | jsonify }},
+    "date": {{ post.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": {{ post.tags | jsonify }},
+    "desc": {{ post.description | default: post.excerpt | strip_html | strip_newlines | truncate: 160 | jsonify }}
+  },
+{%- endfor -%}
+{%- for v in site.videos -%}
+  {
+    "type": "video",
+    "title": {{ v.title | jsonify }},
+    "url": {{ v.url | relative_url | jsonify }},
+    "date": {{ v.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["视频", "AI 周报"],
+    "desc": {{ v.lede | default: v.description | strip_html | strip_newlines | truncate: 160 | jsonify }}
+  },
+{%- endfor -%}
+{%- for g in site.games -%}
+  {
+    "type": "game",
+    "title": {{ g.title | jsonify }},
+    "url": {{ g.play_url | relative_url | jsonify }},
+    "date": {{ g.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["游戏"],
+    "desc": {{ g.description | strip_html | strip_newlines | truncate: 160 | jsonify }}
+  },
+{%- endfor -%}
+{%- for s in site.data.showcases -%}
+  {
+    "type": "showcase",
+    "title": {{ s.title | jsonify }},
+    "url": {% if s.external %}{{ s.url | jsonify }}{% else %}{{ s.url | relative_url | jsonify }}{% endif %},
+    "date": {{ s.date | jsonify }},
+    "tags": {{ s.tags | jsonify }},
+    "desc": {{ s.description | jsonify }}
+  },
+{%- endfor -%}
+{%- for a in site.data.apps -%}
+  {
+    "type": "app",
+    "title": {{ a.title | jsonify }},
+    "url": {{ a.url | jsonify }},
+    "date": {{ a.date | jsonify }},
+    "tags": {{ a.tags | jsonify }},
+    "desc": {{ a.description | jsonify }}
+  },
+{%- endfor -%}
+{% endcapture %}
+<script type="application/json" id="archive-data">[{{ arc | strip }} null]</script>
+<script src="{{ '/assets/js/archive.js' | relative_url }}" defer></script>

@@ -1,0 +1,78 @@
+# Decap CMS 配置（Cloudflare Pages + GitHub 后端，零服务器）
+# 访问地址：https://marginalia-blog.pages.dev/admin/
+# 登录：点 “Login with GitHub”，首次会跳 GitHub 授权（走 Decap 官方 OAuth 代理）。
+# 想完全自托管鉴权，可把 github 后端换成自建 OAuth 代理（见 README / 改造指南）。
+
+backend:
+  name: github
+  repo: evener920/marginalia
+  branch: main
+  # 自建 OAuth 代理（Cloudflare Worker）：Decap 会把 base_url 与 auth_endpoint 拼接
+  # （auth_endpoint 是路径不是完整 URL，默认 "auth"）。Worker 端 /auth 发起授权、/callback 换 token。
+  base_url: https://marginalia-oauth.evener920.workers.dev
+  auth_scope: repo
+
+# simple = 保存即直接 commit 到 main；editorial_workflow = 走 PR 审核流（更稳，按需开启）
+publish_mode: simple
+
+# 媒体文件上传目录（图片/封面）。Decap 上传后会写进这个目录并提交。
+media_folder: "assets/img/uploads"
+public_folder: "/assets/img/uploads"
+
+locale: "zh"
+
+collections:
+  - name: "posts"
+    label: "文章"
+    label_singular: "一篇文章"
+    folder: "_posts"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: post }
+      - { name: title, label: "标题", widget: string }
+      - { name: category, label: "分类", widget: string, hint: "如 Claude · LLM / Agent 工程" }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: author, label: "作者", widget: string, default: Marginalia }
+      - { name: description, label: "描述（SEO）", widget: text }
+      - { name: excerpt, label: "摘要", widget: text }
+      - { name: tags, label: "标签", widget: list, field: { name: tag, widget: string }, default: [] }
+      - { name: keywords, label: "关键词（逗号分隔）", widget: string }
+      - { name: cover, label: "封面图", widget: image, required: false }
+      - { name: body, label: "正文", widget: markdown }
+
+  - name: "videos"
+    label: "视频"
+    label_singular: "一个视频"
+    folder: "_videos"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: video }
+      - { name: title, label: "标题", widget: string }
+      - { name: vol, label: "期号", widget: string, hint: "如 AI WEEKLY · VOL. 2026·W18" }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: description, label: "描述", widget: text }
+      - { name: lede, label: "导语", widget: text }
+      - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "填 BV 号 → 嵌 B 站播放器（照搬，不重传）。留空可用 stream_id 或本地视频" }
+      - { name: stream_id, label: "Cloudflare Stream UID", widget: string, required: false, hint: "上传到 Stream 后得到，自托管播放" }
+      - { name: poster, label: "海报图", widget: image, required: false }
+      - { name: duration, label: "时长", widget: string, required: false, hint: "如 2:53" }
+      - { name: resolution, label: "分辨率", widget: string, required: false, hint: "如 1920×1080 · 30fps" }
+      - { name: cost, label: "成本", widget: string, required: false, hint: "如 ¥23 (按量)" }
+      - { name: stack, label: "技术栈", widget: string, required: false, hint: "如 Remotion · MiniMax · ffmpeg" }
+      - name: pills
+        label: "标签药丸"
+        widget: list
+        required: false
+        field:
+          name: pill
+          widget: object
+          fields:
+            - { name: brand, widget: string, hint: "claude / openai / google ..." }
+            - { name: label, widget: string }
+      - { name: body, label: "正文", widget: markdown }

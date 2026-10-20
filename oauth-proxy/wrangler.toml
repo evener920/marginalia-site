@@ -1,0 +1,14 @@
+name = "marginalia-oauth"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Decap CMS 的 GitHub OAuth 代理：替代 Decap 官方代理，免外部依赖。
+# 部署后把 Worker 地址回填到 admin/config.yml 的 backend.auth_endpoint。
+
+[vars]
+# Decap 后台地址（回跳用，公开 URL，非机密）
+ADMIN_URL = "https://marginalia.201573.xyz/admin/"
+
+# GITHUB_CLIENT_ID 用 secret 存更稳（也可用下方 [vars]，但 secret 更安全）：
+#   wrangler secret put GITHUB_CLIENT_ID --name marginalia-oauth
+#   wrangler secret put GITHUB_CLIENT_SECRET --name marginalia-oauth

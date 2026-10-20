@@ -1,0 +1,14 @@
+_site/
+comments-worker/.wrangler/
+.jekyll-cache/
+.jekyll-metadata
+.bundle/
+vendor/
+Gemfile.lock
+*.gem
+.DS_Store
+
+# Worker 本地缓存
+.wrangler/
+comments-worker/.wrangler/
+oauth-proxy/.wrangler/

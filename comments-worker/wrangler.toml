@@ -1,0 +1,17 @@
+name = "marginalia-comments"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# 评论/点赞后端。前端 reactions.js 通过 <meta name="mg-api">（_config.yml: comments_api）调用。
+# 接口与仓库内 comments-server/app.py 100% 兼容。
+
+[vars]
+# 改成一个你自己的随机串（用于把访客 IP 哈希后存储，避免明文存 IP）
+IP_SALT = "marginalia-change-me-please"
+# 允许跨域调用的站点来源（逗号分隔）。上线自定义域名后把域名加进来。
+ALLOWED_ORIGINS = "https://marginalia-blog.pages.dev"
+
+[[d1_databases]]
+binding = "marginalia_comments"
+database_name = "marginalia-comments"
+database_id = "0490706f-85d3-4a77-8931-0ca7d5716ea1"

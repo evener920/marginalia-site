@@ -1,0 +1,21 @@
+# systemd unit for the Marginalia comments-server.
+# Install: sudo cp mg-comments.service /etc/systemd/system/  (edit paths + EnvironmentFile)
+#          sudo systemctl daemon-reload && sudo systemctl enable --now mg-comments
+[Unit]
+Description=Marginalia comments-server (likes + comments)
+After=network.target
+
+[Service]
+Type=simple
+# --- edit these for the target host ---
+WorkingDirectory=/opt/mg-comments
+EnvironmentFile=/etc/mg-comments.env
+ExecStart=/opt/mg-comments/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8790
+Restart=always
+RestartSec=3
+# minimal hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

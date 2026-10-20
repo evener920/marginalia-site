@@ -1,0 +1,12 @@
+{%- comment -%}
+Full reaction widget (like + comment thread) for detail pages.
+Usage: {% include reactions.html slug=page.url title=page.title url=page.url %}
+JS (assets/js/reactions.js) hydrates the [data-mg-react] node. No-ops if the
+site has no comments_api configured (default.html omits the <meta> then).
+{%- endcomment -%}
+<section class="mg-reactions" data-mg-react data-mode="full"
+  data-slug="{{ include.slug }}"
+  data-title="{{ include.title | escape }}"
+  data-url="{{ include.url | relative_url }}">
+  <noscript><p class="mg-noscript">点赞与评论需要 JavaScript。</p></noscript>
+</section>

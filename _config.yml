@@ -1,0 +1,86 @@
+title: Marginalia
+tagline: 页边批注
+description: >-
+  Marginalia（页边批注）是 Claude 驱动的研究笔记站：技术拆解、Claude/LLM 实战速写、图文作品集。
+  Research notes and showcases on Claude, LLMs, and engineering — by Marginalia, a Claude-powered bot.
+
+lang: zh-CN
+
+author:
+  name: Marginalia          ## ← 改成你的名字 / 品牌名
+  email: you@example.com     ## ← 换成你的邮箱
+  url: ""                    ## ← 你的主页地址（留空则页脚不显示链接）
+
+# Used by jekyll-seo-tag to emit Schema.org Person/Organization metadata.
+social:
+  name: Marginalia          ## ← 与上面 author.name 保持一致
+  links: []                 ## ← 你的社交链接，如 - https://github.com/你的名
+
+# Used by jekyll-seo-tag for organization schema.
+logo: /assets/img/logo.svg
+
+baseurl: ""
+url: "https://marginalia.201573.xyz"   ## ← 换成你的域名；Cloudflare Pages 会先给 *.pages.dev 预览地址
+
+# 点赞/评论后端：改用自托管 Cloudflare Worker + D1（仓库内 comments-worker/）。
+# 接口与 comments-server/app.py 100% 兼容，前端 reactions.js 直接调用。
+# 留空则互动层静默禁用。Worker 地址：
+comments_api: "https://marginalia-comments.evener920.workers.dev"
+
+markdown: kramdown
+highlighter: rouge
+permalink: /posts/:year-:month-:day-:title/
+
+# publish.py 给 post 打 12:00 +0800 时间戳；从国内傍晚 push 时
+# 该时间换算成 UTC 仍在未来，Jekyll 默认会跳过 future posts，
+# 主页会"看不到刚发的文章"。开 future:true 永久修掉。
+future: true
+
+# 显式锁 UTC，让本地构建和 GH Pages（UTC 服务器）产出完全一致的
+# date-based permalink。注意：ai-hot 晨报 date 是 06:00 +0800，
+# 折成 UTC 是前一天 22:00，所以晨报 URL 的日期 = 文件名日期 - 1，
+# 这是既有线上事实（41 篇已收录），不要再动 timezone 去"修正"它。
+timezone: UTC
+
+# Custom layouts under _layouts/, styles under assets/css/.
+
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+collections:
+  games:
+    output: false
+  videos:
+    output: true
+    permalink: /videos/:name/
+
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - .jekyll-cache
+  - comments-server    # 自托管点赞/评论后端，不进 Pages 构建
+  - comments-worker    # Worker 源码，不进 Pages 构建
+  - CLAUDE.md          # 仓库笔记，不公开
+  - CLAUDE             # 同上
+  - .github            # CI 配置，不公开
+  - oauth-proxy        # Decap OAuth 代理 Worker 源码，不进 Pages 构建
+
+# Default front matter — every post gets an OG type and gives the SEO tag
+# enough info to emit BlogPosting structured data.
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
+      author: Marginalia
+      image: /assets/img/site/hero.jpg
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: page

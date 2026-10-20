@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: 'zh-CN' }}" data-baseurl="{{ site.baseurl }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script>
+    /* 主题初始化：在 CSS 之前跑，避免暗色闪白。localStorage 优先，其次系统偏好。 */
+    (function () {
+      try {
+        var t = localStorage.getItem('mg-theme');
+        if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+    })();
+  </script>
+
+  {% seo %}
+  {% feed_meta %}
+  <link rel="alternate" type="application/atom+xml" title="{{ site.title }} · 批注（不含晨报）" href="{{ '/feed-notes.xml' | absolute_url }}">
+
+  {% include custom-head.html %}
+  {% if site.comments_api %}<meta name="mg-api" content="{{ site.comments_api }}">{% endif %}
+  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2226%22 font-size=%2228%22 font-family=%22Georgia,serif%22 fill=%22%238b2e2a%22>¶</text></svg>">
+</head>
+<body data-layout="{{ page.layout }}"{% if page.hero %} class="has-hero"{% endif %}>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="read-progress" aria-hidden="true"><span></span></div>
+
+  <header class="site-header">
+    <div class="wrap header-wrap">
+      <a class="brand" href="{{ '/' | relative_url }}">
+        <span class="brand-mark" aria-hidden="true">¶</span>
+        <span class="brand-text">{{ site.title }}</span>
+      </a>
+      <nav class="site-nav">
+        <a href="{{ '/notes/' | relative_url }}">Report</a>
+        <a href="{{ '/ai-hot/' | relative_url }}">AI Hot</a>
+        <a href="{{ '/videos/' | relative_url }}">Videos</a>
+        <a href="{{ '/apps/' | relative_url }}">Apps</a>
+        <a href="{{ '/showcases/' | relative_url }}">Showcases</a>
+        <a href="{{ '/games/' | relative_url }}">Games</a>
+        <a href="{{ '/archive/' | relative_url }}">Index</a>
+        <a href="{{ '/about/' | relative_url }}">About</a>
+        <button class="nav-btn nav-search" type="button" data-search-open aria-label="搜索（Ctrl+K）">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+          <span class="nav-search-label">搜索</span><kbd>⌘K</kbd>
+        </button>
+        <button class="nav-btn nav-theme" type="button" data-theme-toggle aria-label="切换夜读模式">
+          <span class="theme-icon theme-icon--light" aria-hidden="true">☾</span>
+          <span class="theme-icon theme-icon--dark" aria-hidden="true">☀</span>
+        </button>
+        <button class="nav-btn nav-music" type="button" data-ambient
+                data-src="{{ '/assets/img/site/ambient-loop.mp3' | relative_url }}"
+                aria-label="夜读伴奏" title="夜读伴奏">
+          <span class="ambient-glyph" aria-hidden="true">♪</span>
+        </button>
+        {% if site.comments_api %}
+        <button class="nav-btn nav-msg" type="button" data-msgbox-open aria-label="消息 · 最近评论" title="消息盒子">
+          <span class="msg-glyph" aria-hidden="true">✉</span>
+          <span class="mg-msg-badge" hidden></span>
+        </button>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="site-main{% if page.hero %} site-main--flush{% endif %}">
+    {{ content }}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>
+        © {{ 'now' | date: '%Y' }} {{ site.title }}.
+        由 {{ site.author.name | default: site.title }} 维护
+        {%- if site.author.url and site.author.url != "" %}（<a href="{{ site.author.url }}">主页</a>）{% endif %}
+        · Feed（<a href="{{ '/feed.xml' | relative_url }}">全部</a> / <a href="{{ '/feed-notes.xml' | relative_url }}">仅批注</a>）
+        · <button class="ambient-btn" type="button" data-ambient
+                  data-src="{{ '/assets/img/site/ambient-loop.mp3' | relative_url }}">
+            <span class="ambient-glyph" aria-hidden="true">♪</span> 夜读伴奏
+          </button>
+        <br>
+        <span class="muted">页边即正文。每一篇都是写在书页边上的一句话——只是这本书很大。</span>
+      </p>
+    </div>
+  </footer>
+
+  <script src="{{ '/assets/js/site.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/search.js' | relative_url }}" defer></script>
+  {% if site.comments_api %}<script src="{{ '/assets/js/reactions.js' | relative_url }}" defer></script>{% endif %}
+</body>
+</html>

@@ -1,0 +1,7 @@
+# GitHub Pages 镜像构建覆盖（pyf-labrary.github.io/marginalia/）。
+# 生产站（jinzi.cyou，根路径）用 _config.yml 原值构建，此文件只参与镜像构建：
+#   jekyll build --config _config.yml,_config_ghpages.yml
+# baseurl 会让所有 relative_url 链接/资源带 /marginalia/ 前缀；
+# url 覆盖让 feed/sitemap 在镜像上指向 gh.io 而不是 jinzi.cyou。
+url: "https://pyf-labrary.github.io"
+baseurl: "/marginalia"

@@ -1,0 +1,104 @@
+---
+layout: default
+---
+<div class="ai-hot-wrap">
+  <article class="post ai-hot-post">
+    <header class="post-header">
+      <p class="kicker">🔥 AI 热点 · A Daily Digest</p>
+      <h1>{{ page.title }}</h1>
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.tags and page.tags.size > 0 %}
+          <span class="dot">·</span>
+          <span class="tags-inline">
+            {% for t in page.tags %}<span>#{{ t }}</span>{% unless forloop.last %} <span class="dot">·</span> {% endunless %}{% endfor %}
+          </span>
+        {% endif %}
+      </p>
+    </header>
+
+    {% if page.sections and page.sections.size > 0 %}
+    <details class="ai-hot-toc-mobile" aria-label="板块导航">
+      <summary>📑 跳转到板块</summary>
+      <ul>
+        {% for s in page.sections %}
+        <li><a href="#{{ s.id }}">{{ s.emoji }} {{ s.name }}{% if s.count %} ({{ s.count }}){% endif %}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+
+    <div class="post-body ai-hot-body">
+      {{ content }}
+    </div>
+
+    <footer class="post-footer">
+      <p>
+        <a class="back" href="{{ '/ai-hot/' | relative_url }}">← 所有 AI 晨报</a>
+      </p>
+    </footer>
+  </article>
+
+  {% if page.sections and page.sections.size > 0 %}
+  <aside class="ai-hot-toc" aria-label="板块导航">
+    <div class="toc-inner">
+      <h3 class="toc-title">本期板块</h3>
+      <ul>
+        {% for s in page.sections %}
+        <li><a href="#{{ s.id }}" data-target="{{ s.id }}">
+          <span class="toc-emoji">{{ s.emoji }}</span>
+          <span class="toc-name">{{ s.name }}</span>
+          {% if s.count %}<span class="toc-count">{{ s.count }}</span>{% endif %}
+        </a></li>
+        {% endfor %}
+      </ul>
+      <a class="toc-top" href="#main">↑ 回到顶部</a>
+    </div>
+  </aside>
+  {% endif %}
+</div>
+
+{% if page.sections and page.sections.size > 0 %}
+<script>
+(function(){
+  var links = Array.prototype.slice.call(
+    document.querySelectorAll('.ai-hot-toc a[data-target]')
+  );
+  if (!links.length) return;
+  var sections = links.map(function(a){
+    return { id: a.dataset.target, el: document.getElementById(a.dataset.target), link: a };
+  }).filter(function(s){ return s.el; });
+  if (!sections.length) return;
+
+  // 阈值：视口顶部下方 120px（避开 sticky site-header）
+  var THRESHOLD = 120;
+  var ticking = false;
+
+  function update(){
+    ticking = false;
+    var current = sections[0];
+    for (var i = 0; i < sections.length; i++) {
+      var top = sections[i].el.getBoundingClientRect().top;
+      if (top - THRESHOLD <= 0) {
+        current = sections[i];
+      } else {
+        break;
+      }
+    }
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  function onScroll(){
+    if (!ticking) {
+      window.requestAnimationFrame(update);
+      ticking = true;
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  update();
+})();
+</script>
+{% endif %}

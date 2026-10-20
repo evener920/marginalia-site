@@ -1,0 +1,225 @@
+---
+layout: default
+---
+<div class="wrap">
+  <article class="page video-page">
+    <header class="page-header video-header">
+      {% if page.vol %}<p class="kicker video-kicker">🎬 {{ page.vol }}</p>{% endif %}
+      <h1>{{ page.title }}</h1>
+      {% if page.lede %}<p class="video-lede">{{ page.lede }}</p>{% endif %}
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.tags and page.tags.size > 0 %}
+          <span class="dot">·</span>
+          <span class="tags-inline">
+            {% for t in page.tags %}<span>#{{ t }}</span>{% unless forloop.last %} <span class="dot">·</span> {% endunless %}{% endfor %}
+          </span>
+        {% endif %}
+      </p>
+    </header>
+
+    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% endif %}">
+      {% if page.stream_id %}
+        {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
+        <stream src="{{ page.stream_id }}" controls></stream>
+      {% elsif page.bvid %}
+        <iframe
+          src="//player.bilibili.com/player.html?bvid={{ page.bvid }}&autoplay=0&high_quality=1&danmaku=0"
+          scrolling="no"
+          frameborder="0"
+          allowfullscreen="true"
+          referrerpolicy="no-referrer"
+          loading="lazy"
+        ></iframe>
+      {% else %}
+        <video
+          controls
+          preload="metadata"
+          {% if page.poster %}poster="{{ page.poster | relative_url }}"{% endif %}
+        >
+          <source src="{{ page.video | relative_url }}" type="video/mp4">
+          你的浏览器不支持视频标签。
+        </video>
+      {% endif %}
+    </div>
+    {% if page.stream_id %}
+      <p class="video-bili-link">
+        视频由 Cloudflare Stream 托管 ·
+        <a href="https://cloudflarestream.com/{{ page.stream_id }}/watch" target="_blank" rel="noopener">在 Stream 打开</a>
+      </p>
+    {% elsif page.bvid %}
+      <p class="video-bili-link">
+        视频托管于 B 站 ·
+        <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a>
+      </p>
+    {% endif %}
+    {% if page.stream_id %}
+      {# Cloudflare Stream <stream> 自定义元素的运行时 #}
+      <script src="https://embed.cloudflarestream.com/embed/sdk.latest.js" defer></script>
+    {% endif %}
+
+    <dl class="video-stats">
+      {% if page.duration %}<div><dt>时长</dt><dd>{{ page.duration }}</dd></div>{% endif %}
+      {% if page.resolution %}<div><dt>分辨率</dt><dd>{{ page.resolution }}</dd></div>{% endif %}
+      {% if page.cost %}<div><dt>制作成本</dt><dd>{{ page.cost }}</dd></div>{% endif %}
+      {% if page.stack %}<div><dt>技术栈</dt><dd>{{ page.stack }}</dd></div>{% endif %}
+    </dl>
+
+    <div class="page-body video-body">
+      {{ content }}
+    </div>
+
+    {% if page.sources and page.sources.size > 0 %}
+    <section class="video-sources">
+      <h3>Sources</h3>
+      <ul>
+        {% for s in page.sources %}
+          <li><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <footer class="post-footer">
+      {% include reactions.html slug=page.url title=page.title url=page.url %}
+      <p><a class="back" href="{{ '/videos/' | relative_url }}">← 所有视频</a></p>
+    </footer>
+  </article>
+</div>
+
+<style>
+  .video-page { max-width: var(--wide); }
+  .video-header { border-bottom: 1px solid var(--rule); padding-bottom: 1.4rem; margin-bottom: 1.8rem; }
+  .video-kicker {
+    color: var(--accent);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    margin: 0 0 0.6rem;
+    font-family: var(--sans);
+  }
+  .video-header h1 {
+    font-family: var(--serif);
+    font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 0.8rem;
+    letter-spacing: -0.005em;
+  }
+  .video-lede {
+    font-size: 1.05rem;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0 0 0.8rem;
+    max-width: 60ch;
+  }
+
+  .video-player {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--bg-tint);                     /* cream when poster未加载 */
+    padding: 14px;                                   /* 米白色"裱框" */
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08);  /* 柔和阴影，去掉重影 */
+    margin-bottom: 1.8rem;
+  }
+  .video-player video,
+  .video-player iframe {
+    width: 100%; height: 100%; display: block;
+    border-radius: 2px;
+    background: var(--bg-tint);                      /* 元素自身底色也是米白 */
+  }
+  .video-player--bili iframe { border: 0; }
+  .video-player--stream stream,
+  .video-player stream {
+    width: 100%; height: 100%; display: block;
+    border-radius: 2px; background: #000;
+  }
+  .video-bili-link {
+    margin: -1.2rem 0 1.8rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: var(--sans);
+    text-align: right;
+  }
+  .video-bili-link a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(139, 46, 42, 0.35);
+  }
+  .video-bili-link a:hover { border-bottom-style: solid; }
+
+  .video-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.6rem 1.6rem;
+    padding: 1rem 1.2rem;
+    background: var(--bg-tint);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin: 0 0 2rem;
+  }
+  .video-stats div { margin: 0; }
+  .video-stats dt {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.2rem;
+    font-family: var(--sans);
+  }
+  .video-stats dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 0.98rem;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--sans);
+  }
+
+  .video-body { font-size: 1.02rem; line-height: 1.75; }
+  .video-body h2 {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    margin: 2.2rem 0 0.9rem;
+    padding-left: 0.6rem;
+    border-left: 3px solid var(--accent);
+  }
+  .video-body h3 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    margin: 1.6rem 0 0.5rem;
+  }
+  .video-body blockquote {
+    border-left: 3px solid var(--accent-soft);
+    padding-left: 1rem;
+    margin: 1.2rem 0;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  .video-sources {
+    margin-top: 2.5rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--rule);
+  }
+  .video-sources h3 {
+    font-size: 0.78rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.8rem;
+    font-family: var(--sans);
+  }
+  .video-sources ul { list-style: none; padding: 0; margin: 0; }
+  .video-sources li {
+    margin-bottom: 0.45rem;
+    font-size: 0.94rem;
+    line-height: 1.55;
+  }
+  .video-sources a {
+    color: var(--accent);
+    border-bottom: 1px dashed rgba(139, 46, 42, 0.35);
+    text-decoration: none;
+  }
+  .video-sources a:hover { border-bottom-style: solid; }
+</style>
