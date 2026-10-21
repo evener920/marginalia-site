@@ -95,3 +95,14 @@ nav:
     link: /about/
   - name: 归档
     link: /archive/
+
+# 首页「栏目」卡片区：想加/删/改首页栏目卡片，只改这里（image 可留空）
+streams:
+  - title: 文章
+    link: /
+    image: /assets/img/site/emblem-notes.jpg
+    desc: 你写下的每一篇文章与随笔。
+  - title: 视频
+    link: /videos/
+    image: /assets/img/site/emblem-videos.jpg
+    desc: 你发布的视频专栏。

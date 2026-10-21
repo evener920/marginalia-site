@@ -1,8 +1,7 @@
 ---
 layout: default
 ---
-{%- assign hot_posts = site.posts | where_exp: "p", "p.tags contains 'ai-hot'" -%}
-{%- assign note_count = site.posts.size | minus: hot_posts.size -%}
+{%- assign note_count = site.posts.size -%}
 
 <section class="hero" aria-label="Marginalia">
   <video class="hero-media" autoplay muted loop playsinline
@@ -15,7 +14,7 @@ layout: default
   <div class="wrap wrap--wide hero-inner">
     <p class="hero-kicker reveal" style="--d:0">MARGINALIA · 页边批注</p>
     <h1 class="hero-title reveal" style="--d:1">页边<br>自有山河<span class="hero-mark">¶</span></h1>
-    <p class="hero-sub reveal" style="--d:2">一个 Claude 驱动的创作站——研究笔记、每日 AI 热点、视频、互动应用与小游戏。<br>每一篇都是写在书页边上的一句话。</p>
+    <p class="hero-sub reveal" style="--d:2">一个你的创作站——用文章和视频，记录想留住的东西。<br>每一篇都是写在书页边上的一句话。</p>
     <div class="hero-actions reveal" style="--d:3">
       <button class="hero-btn hero-btn--primary" type="button" data-search-open>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
@@ -24,12 +23,8 @@ layout: default
       <a class="hero-btn" href="{{ '/archive/' | relative_url }}">浏览索引 →</a>
     </div>
     <ul class="hero-stats reveal" style="--d:4" role="list">
-      <li><b>{{ note_count }}</b> 篇批注</li>
-      <li><b>{{ hot_posts.size }}</b> 期晨报</li>
+      <li><b>{{ note_count }}</b> 篇文章</li>
       <li><b>{{ site.videos.size }}</b> 部视频</li>
-      <li><b>{{ site.data.apps.size }}</b> 个应用</li>
-      <li><b>{{ site.games.size }}</b> 个游戏</li>
-      <li><b>{{ site.data.showcases.size }}</b> 份 Showcase</li>
     </ul>
   </div>
 </section>
@@ -37,71 +32,19 @@ layout: default
 <div class="wrap wrap--wide">
 
   <section class="stream-grid" aria-label="栏目">
-    <a class="stream-card reveal" style="--d:0" href="{{ '/notes/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-notes.jpg' | relative_url }}" alt="" loading="lazy">
+    {% for s in site.streams %}
+    <a class="stream-card reveal" style="--d:{{ forloop.index0 }}" href="{{ s.link | relative_url }}">
+      {% if s.image %}<img src="{{ s.image | relative_url }}" alt="" loading="lazy">{% endif %}
       <div class="stream-body">
-        <h3>研究报告 <span class="stream-count">{{ note_count }}</span></h3>
-        <p>研究笔记与技术拆解——Claude、agent、AIGC 工艺，写清楚一件事。</p>
+        <h3>{{ s.title }}</h3>
+        <p>{{ s.desc }}</p>
       </div>
     </a>
-    <a class="stream-card reveal" style="--d:1" href="{{ '/ai-hot/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-ai-hot.jpg' | relative_url }}" alt="" loading="lazy">
-      <div class="stream-body">
-        <h3>AI Hot <span class="stream-count">{{ hot_posts.size }}</span></h3>
-        <p>每天 06:00 自动汇集前 24 小时全网 AI 动态，聚类去重、分板块成稿。</p>
-      </div>
-    </a>
-    <a class="stream-card reveal" style="--d:2" href="{{ '/videos/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-videos.jpg' | relative_url }}" alt="" loading="lazy">
-      <div class="stream-body">
-        <h3>Videos <span class="stream-count">{{ site.videos.size }}</span></h3>
-        <p>AI 周报与论点片——脚本、配音、动效、B-roll 全流水线生成。</p>
-      </div>
-    </a>
-    <a class="stream-card reveal" style="--d:3" href="{{ '/apps/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-apps.jpg' | relative_url }}" alt="" loading="lazy">
-      <div class="stream-body">
-        <h3>Apps <span class="stream-count">{{ site.data.apps.size }}</span></h3>
-        <p>可上手的互动应用——浏览器终端、口语训练、配乐教学。</p>
-      </div>
-    </a>
-    <a class="stream-card reveal" style="--d:4" href="{{ '/showcases/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-showcases.jpg' | relative_url }}" alt="" loading="lazy">
-      <div class="stream-body">
-        <h3>Showcases <span class="stream-count">{{ site.data.showcases.size }}</span></h3>
-        <p>带版式的多页 HTML deck——演讲、大师课、立项手册，独立排版。</p>
-      </div>
-    </a>
-    <a class="stream-card reveal" style="--d:5" href="{{ '/games/' | relative_url }}">
-      <img src="{{ '/assets/img/site/emblem-games.jpg' | relative_url }}" alt="" loading="lazy">
-      <div class="stream-body">
-        <h3>Games <span class="stream-count">{{ site.games.size }}</span></h3>
-        <p>点开即玩的 HTML 游戏——从斗地主到全 AI 资产的 roguelike 大制作。</p>
-      </div>
-    </a>
+    {% endfor %}
   </section>
-
-  {% assign ai_hot = hot_posts | first %}
-  {% if ai_hot %}
-  <section class="ai-hot-feature reveal" aria-label="AI 热点">
-    <header class="ai-hot-head">
-      <span class="ai-hot-pill">AI 热点 · 每日 06:00 自动更新</span>
-      <time datetime="{{ ai_hot.date | date_to_xmlschema }}" class="ai-hot-time">
-        {{ ai_hot.date | date: '%Y-%m-%d' }}
-      </time>
-    </header>
-    <h2 class="ai-hot-title">
-      <a href="{{ ai_hot.url | relative_url }}">{{ ai_hot.title }}</a>
-    </h2>
-    {% if ai_hot.excerpt %}
-    <p class="ai-hot-excerpt">{{ ai_hot.excerpt | strip_html | strip_newlines | truncate: 220 }}</p>
-    {% endif %}
-    <a class="ai-hot-cta" href="{{ ai_hot.url | relative_url }}">阅读今日全文 →</a>
-  </section>
-  {% endif %}
 
   <section class="post-list-section" id="notes">
-    <h2 class="section-title">最近的批注 · Recent Notes</h2>
+    <h2 class="section-title">最近的文章 · Recent Posts</h2>
     {% if note_count == 0 %}
       <p class="empty-state">还没有文章。<code>_posts/</code> 目录里丢一个 <code>YYYY-MM-DD-slug.md</code> 就出现了。</p>
     {% else %}
