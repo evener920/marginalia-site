@@ -59,7 +59,8 @@ collections:
       - { name: description, label: "描述", widget: text }
       - { name: lede, label: "导语", widget: text }
       - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "填 BV 号 → 嵌 B 站播放器（照搬，不重传）。留空可用 stream_id 或本地视频" }
-      - { name: stream_id, label: "Cloudflare Stream UID", widget: string, required: false, hint: "上传到 Stream 后得到，自托管播放" }
+      - { name: stream_id, label: "Cloudflare Stream UID", widget: string, required: false, hint: "上传到 Stream 后得到，自托管播放（约 $5/月起）" }
+      - { name: video_url, label: "R2 / 直链视频地址", widget: string, required: false, hint: "填 mp4 的公开直链（如 R2 桶 / 其他云存储的 https 链接），播放器直接播，视频不进 git 仓库" }
       - { name: poster, label: "海报图", widget: image, required: false }
       - { name: duration, label: "时长", widget: string, required: false, hint: "如 2:53" }
       - { name: resolution, label: "分辨率", widget: string, required: false, hint: "如 1920×1080 · 30fps" }

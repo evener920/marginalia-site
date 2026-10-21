@@ -18,7 +18,7 @@ layout: default
       </p>
     </header>
 
-    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% endif %}">
+    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif page.video_url or page.video %} video-player--file{% endif %}">
       {% if page.stream_id %}
         {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
         <stream src="{{ page.stream_id }}" controls></stream>
@@ -31,10 +31,21 @@ layout: default
           referrerpolicy="no-referrer"
           loading="lazy"
         ></iframe>
-      {% else %}
+      {% elsif page.video_url %}
         <video
           controls
           preload="metadata"
+          playsinline
+          {% if page.poster %}poster="{{ page.poster | relative_url }}"{% endif %}
+        >
+          <source src="{{ page.video_url }}" type="video/mp4">
+          你的浏览器不支持视频标签。
+        </video>
+      {% elsif page.video %}
+        <video
+          controls
+          preload="metadata"
+          playsinline
           {% if page.poster %}poster="{{ page.poster | relative_url }}"{% endif %}
         >
           <source src="{{ page.video | relative_url }}" type="video/mp4">
@@ -51,6 +62,11 @@ layout: default
       <p class="video-bili-link">
         视频托管于 B 站 ·
         <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a>
+      </p>
+    {% elsif page.video_url %}
+      <p class="video-bili-link">
+        视频托管于 Cloudflare R2 ·
+        <a href="{{ page.video_url }}" target="_blank" rel="noopener">打开原视频</a>
       </p>
     {% endif %}
     {% if page.stream_id %}
