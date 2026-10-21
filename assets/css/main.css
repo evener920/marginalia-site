@@ -553,6 +553,14 @@ li > ul, li > ol { margin-top: .35em; margin-bottom: .35em; }
     gap: 3rem;
     align-items: start;
   }
+  /* No TOC (article has <3 headings) → don't let the article fall into the
+     240px first column. Span the full wrap and center the reading measure. */
+  .post-toc[hidden] ~ .post {
+    grid-column: 1 / -1;
+    max-width: var(--measure);
+    width: 100%;
+    margin: 0 auto;
+  }
   .post-toc {
     position: sticky;
     top: 5rem;
