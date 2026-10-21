@@ -84,3 +84,14 @@ defaults:
       type: pages
     values:
       layout: page
+
+# 导航栏：想加/删/改栏目，只改这里（link 是站内路径，name 是显示文字）
+nav:
+  - name: 首页
+    link: /
+  - name: 视频
+    link: /videos/
+  - name: 关于
+    link: /about/
+  - name: 归档
+    link: /archive/
