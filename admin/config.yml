@@ -22,6 +22,7 @@ public_folder: "/assets/img/uploads"
 locale: "zh"
 
 collections:
+  # ============ 文章：只填 标题/标签/正文，其余自动 ============
   - name: "posts"
     label: "文章"
     label_singular: "一篇文章"
@@ -33,16 +34,12 @@ collections:
     fields:
       - { name: layout, label: "布局", widget: hidden, default: post }
       - { name: title, label: "标题", widget: string }
-      - { name: category, label: "分类", widget: string, hint: "如 Claude · LLM / Agent 工程" }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
-      - { name: author, label: "作者", widget: string, default: Marginalia }
-      - { name: description, label: "描述（SEO）", widget: text }
-      - { name: excerpt, label: "摘要", widget: text }
-      - { name: tags, label: "标签", widget: list, field: { name: tag, widget: string }, default: [] }
-      - { name: keywords, label: "关键词（逗号分隔）", widget: string }
-      - { name: cover, label: "封面图", widget: image, required: false }
+      - { name: author, label: "作者", widget: hidden, default: "万小罗" }
+      - { name: tags, label: "标签（可留空）", widget: list, field: { name: tag, widget: string }, default: [], required: false }
       - { name: body, label: "正文", widget: markdown }
 
+  # ============ 视频：标题 + 三选一视频来源 + 正文 ============
   - name: "videos"
     label: "视频"
     label_singular: "一个视频"
@@ -54,30 +51,14 @@ collections:
     fields:
       - { name: layout, label: "布局", widget: hidden, default: video }
       - { name: title, label: "标题", widget: string }
-      - { name: vol, label: "期号", widget: string, hint: "如 AI WEEKLY · VOL. 2026·W18" }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
-      - { name: description, label: "描述", widget: text }
-      - { name: lede, label: "导语", widget: text }
-      - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "填 BV 号 → 嵌 B 站播放器（照搬，不重传）。留空可用 stream_id 或本地视频" }
-      - { name: stream_id, label: "Cloudflare Stream UID", widget: string, required: false, hint: "上传到 Stream 后得到，自托管播放（约 $5/月起）" }
-      - { name: video_url, label: "R2 / 直链视频地址", widget: string, required: false, hint: "填 mp4 的公开直链（如 R2 桶 / 其他云存储的 https 链接），播放器直接播，视频不进 git 仓库" }
-      - { name: poster, label: "海报图", widget: image, required: false }
-      - { name: duration, label: "时长", widget: string, required: false, hint: "如 2:53" }
-      - { name: resolution, label: "分辨率", widget: string, required: false, hint: "如 1920×1080 · 30fps" }
-      - { name: cost, label: "成本", widget: string, required: false, hint: "如 ¥23 (按量)" }
-      - { name: stack, label: "技术栈", widget: string, required: false, hint: "如 Remotion · MiniMax · ffmpeg" }
-      - name: pills
-        label: "标签药丸"
-        widget: list
-        required: false
-        field:
-          name: pill
-          widget: object
-          fields:
-            - { name: brand, widget: string, hint: "claude / openai / google ..." }
-            - { name: label, widget: string }
-      - { name: body, label: "正文", widget: markdown }
+      - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
+      - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "三选一：填 BV 号嵌 B 站播放器，如 BV1xx411c7mD" }
+      - { name: video_url, label: "R2 视频 mp4 直链", widget: string, required: false, hint: "三选一：最稳方式，填 R2 里 mp4 的公开链接" }
+      - { name: douyin_id, label: "抖音视频 ID", widget: string, required: false, hint: "三选一：抖音链接 video/ 后面那串数字；稳定性看运气" }
+      - { name: body, label: "正文（可留空）", widget: markdown, required: false }
 
+  # ============ 文档：标题 + PDF 直链 ============
   - name: "docs"
     label: "文档"
     label_singular: "一个文档"
@@ -90,7 +71,5 @@ collections:
       - { name: layout, label: "布局", widget: hidden, default: doc }
       - { name: title, label: "标题", widget: string }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
-      - { name: description, label: "描述（SEO）", widget: text }
-      - { name: pdf_url, label: "R2 / 直链 PDF 地址", widget: string, required: false, hint: "填 PDF 的公开直链（如 R2 桶 / 其他云存储的 https 链接），页面直接内嵌翻阅，文件不进 git 仓库" }
-      - { name: cover, label: "封面图", widget: image, required: false }
-      - { name: body, label: "正文", widget: markdown }
+      - { name: pdf_url, label: "R2 PDF 直链", widget: string, hint: "填 R2 里 PDF 的公开链接，页面内嵌翻阅，文件不进 git" }
+      - { name: body, label: "正文（可留空）", widget: markdown, required: false }
