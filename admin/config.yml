@@ -36,7 +36,7 @@ collections:
       - { name: title, label: "标题", widget: string }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: author, label: "作者", widget: hidden, default: "万小罗" }
-      - { name: tags, label: "标签（可留空）", widget: list, field: { name: tag, widget: string }, default: [], required: false }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "点添加后直接输入文字，每行一个标签" }
       - { name: body, label: "正文", widget: markdown }
 
   # ============ 视频：标题 + 三选一视频来源 + 正文 ============
