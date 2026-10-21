@@ -18,13 +18,23 @@ layout: default
       </p>
     </header>
 
-    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif page.video_url or page.video %} video-player--file{% endif %}">
+    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif page.douyin_id %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
       {% if page.stream_id %}
         {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
         <stream src="{{ page.stream_id }}" controls></stream>
       {% elsif page.bvid %}
         <iframe
           src="//player.bilibili.com/player.html?bvid={{ page.bvid }}&autoplay=0&high_quality=1&danmaku=0"
+          scrolling="no"
+          frameborder="0"
+          allowfullscreen="true"
+          referrerpolicy="no-referrer"
+          loading="lazy"
+        ></iframe>
+      {% elsif page.douyin_id %}
+        {# 抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App） #}
+        <iframe
+          src="//open.douyin.com/player/video?vid={{ page.douyin_id }}&autoplay=0"
           scrolling="no"
           frameborder="0"
           allowfullscreen="true"
@@ -62,6 +72,11 @@ layout: default
       <p class="video-bili-link">
         视频托管于 B 站 ·
         <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a>
+      </p>
+    {% elsif page.douyin_id %}
+      <p class="video-bili-link">
+        视频托管于 抖音 ·
+        <a href="https://www.douyin.com/video/{{ page.douyin_id }}" target="_blank" rel="noopener">在抖音打开</a>
       </p>
     {% elsif page.video_url %}
       <p class="video-bili-link">
@@ -146,6 +161,12 @@ layout: default
     background: var(--bg-tint);                      /* 元素自身底色也是米白 */
   }
   .video-player--bili iframe { border: 0; }
+  .video-player--douyin {
+    aspect-ratio: 9 / 16;                /* 抖音竖屏 */
+    max-width: 380px;
+    margin-left: auto; margin-right: auto;
+  }
+  .video-player--douyin iframe { border: 0; }
   .video-player--stream stream,
   .video-player stream {
     width: 100%; height: 100%; display: block;
