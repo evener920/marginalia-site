@@ -55,6 +55,9 @@ collections:
   videos:
     output: true
     permalink: /videos/:name/
+  docs:
+    output: true
+    permalink: /docs/:name/
 
 exclude:
   - README.md
@@ -91,6 +94,8 @@ nav:
     link: /
   - name: 视频
     link: /videos/
+  - name: 文档
+    link: /docs/
   - name: 关于
     link: /about/
   - name: 归档
@@ -106,3 +111,7 @@ streams:
     link: /videos/
     image: /assets/img/site/emblem-videos.jpg
     desc: 你发布的视频专栏。
+  - title: 文档
+    link: /docs/
+    image: /assets/img/site/emblem-notes.jpg
+    desc: 你上传的书目、资料与 PDF 文档。

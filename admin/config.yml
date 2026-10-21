@@ -77,3 +77,20 @@ collections:
             - { name: brand, widget: string, hint: "claude / openai / google ..." }
             - { name: label, widget: string }
       - { name: body, label: "正文", widget: markdown }
+
+  - name: "docs"
+    label: "文档"
+    label_singular: "一个文档"
+    folder: "_docs"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: doc }
+      - { name: title, label: "标题", widget: string }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: description, label: "描述（SEO）", widget: text }
+      - { name: pdf_url, label: "R2 / 直链 PDF 地址", widget: string, required: false, hint: "填 PDF 的公开直链（如 R2 桶 / 其他云存储的 https 链接），页面直接内嵌翻阅，文件不进 git 仓库" }
+      - { name: cover, label: "封面图", widget: image, required: false }
+      - { name: body, label: "正文", widget: markdown }
