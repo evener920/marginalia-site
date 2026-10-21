@@ -9,5 +9,93 @@
   <body>
     <!-- Decap CMS 会自动加载同目录下的 config.yml -->
     <script src="https://unpkg.com/decap-cms@^3.3.3/dist/decap-cms.js"></script>
+    <script>
+    /* ============================================================
+       把「代码块 / 图片」从 + 二级菜单提升为工具栏独立按钮。
+       Decap 官方不支持自定义工具栏，这里用 DOM 注入实现；
+       任何一步找不到目标节点就静默跳过，不影响后台正常使用。
+       ============================================================ */
+    (function () {
+      if (window.__mgPinToolbar) return;
+      window.__mgPinToolbar = true;
+
+      var CODE_LABELS = ["Code Block", "代码块"];
+      var IMG_LABELS  = ["Image", "图片"];
+
+      var SVG_CODE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+      var SVG_IMG  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+
+      function textOf(el) { return (el.textContent || "").trim(); }
+      function visible(el) { return !!(el && el.offsetParent); }
+
+      /* 在当前文档里找可见的菜单项（按文字匹配） */
+      function findMenuItem(labels) {
+        var els = document.querySelectorAll('button, [role="menuitem"], li, a');
+        for (var i = 0; i < els.length; i++) {
+          if (labels.indexOf(textOf(els[i])) !== -1 && visible(els[i])) return els[i];
+        }
+        return null;
+      }
+
+      var busy = false;
+
+      function tryPin() {
+        if (busy) return;
+        var codeItem = findMenuItem(CODE_LABELS);   /* 只有 + 菜单展开时才找得到 */
+        if (!codeItem) return;
+        busy = true;
+
+        try {
+          var imgItem = findMenuItem(IMG_LABELS);
+
+          /* 菜单容器 → 往上找包含触发按钮(+)的那层，即工具栏 */
+          var drop = codeItem.closest("ul") || codeItem.parentElement;
+          var host = drop ? drop.parentElement : null;          /* 通常同时装着 + 按钮 */
+          var toolbar = host ? host.parentElement : null;
+          if (!toolbar || toolbar.querySelector('[data-mg-pin]')) { busy = false; return; }
+
+          var refBtn = (host && host.querySelector("button")) ||
+                       toolbar.querySelector("button");
+          if (!refBtn) { busy = false; return; }
+
+          function activate(labels, opener) {
+            var item = findMenuItem(labels);
+            if (item) { item.click(); return; }
+            if (opener) {                       /* 菜单没开：先点 + 展开再选 */
+              opener.click();
+              setTimeout(function () {
+                var it = findMenuItem(labels);
+                if (it) it.click();
+              }, 150);
+            }
+          }
+
+          function makePin(svg, title, labels) {
+            var b = refBtn.cloneNode(false);    /* 只复制样式类，不带事件 */
+            b.type = "button";
+            b.setAttribute("data-mg-pin", title);
+            b.title = title;
+            b.innerHTML = svg;
+            b.addEventListener("mousedown", function (e) { e.preventDefault(); });
+            b.addEventListener("click", function (e) {
+              e.preventDefault(); e.stopPropagation();
+              activate(labels, host ? host.querySelector("button") : null);
+            });
+            return b;
+          }
+
+          /* 插到 + 按钮前面（即 host 之前），视觉上就是工具栏末尾两个新按钮 */
+          var pinCode = makePin(SVG_CODE, "代码块", CODE_LABELS);
+          var pinImg  = makePin(SVG_IMG,  "图片",   IMG_LABELS);
+          toolbar.insertBefore(pinImg, host);
+          toolbar.insertBefore(pinCode, pinImg);
+          toolbar.setAttribute("data-mg-pin-toolbar", "1");
+        } catch (err) { /* 静默失败，不影响后台 */ }
+        busy = false;
+      }
+
+      new MutationObserver(tryPin).observe(document.body, { childList: true, subtree: true });
+    })();
+    </script>
   </body>
 </html>
