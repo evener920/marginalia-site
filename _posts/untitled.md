@@ -1,3 +1,14 @@
+---
+layout: post
+title: 发布测试
+category: 测试
+date: 2026-10-21 10:40:00 +08:00
+author: 万小罗
+description: 第一次用 solomd 推送的测试文章
+excerpt: 测试推送是否正常上线
+tags:
+  - 测试
+
 最好的学习方法就是硬学
 2026-10-09
 约 6270 字
