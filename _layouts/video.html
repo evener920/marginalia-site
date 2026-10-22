@@ -43,7 +43,7 @@ layout: default
 
     <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
       {% if page.stream_id %}
-        {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
+        {% comment %}Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图{% endcomment %}
         <stream src="{{ page.stream_id }}" controls></stream>
       {% elsif page.bvid %}
         <iframe
@@ -55,7 +55,7 @@ layout: default
           loading="lazy"
         ></iframe>
       {% elsif douyin_vid and douyin_is_note == false %}
-        {# 抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App） #}
+        {% comment %}抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App）{% endcomment %}
         <iframe
           src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0"
           scrolling="no"
@@ -65,7 +65,7 @@ layout: default
           loading="lazy"
         ></iframe>
       {% elsif douyin_vid and douyin_is_note %}
-        {# 抖音图文作品：开放播放器不支持图文，只给外链 #}
+        {% comment %}抖音图文作品：开放播放器不支持图文，只给外链{% endcomment %}
         <div class="video-note-card">
           <p class="video-note-icon">📄</p>
           <p class="video-note-text">这是一条抖音<strong>图文作品</strong>，抖音开放播放器不支持内嵌图文，请在抖音内查看。</p>
@@ -119,7 +119,7 @@ layout: default
       </p>
     {% endif %}
     {% if page.stream_id %}
-      {# Cloudflare Stream <stream> 自定义元素的运行时 #}
+      {% comment %}Cloudflare Stream 自定义元素的运行时{% endcomment %}
       <script src="https://embed.cloudflarestream.com/embed/sdk.latest.js" defer></script>
     {% endif %}
 
