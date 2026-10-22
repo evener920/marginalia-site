@@ -195,9 +195,9 @@ wide: true
   .videos-list.is-grid .poster { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; }
   .videos-list.is-grid .poster img { object-fit: cover; }
   .videos-list.is-grid .meta { padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
-  .videos-list.is-grid .title { font-size: 0.92rem; margin-bottom: 0.25rem; }
+  .videos-list.is-grid .title { font-size: 0.92rem; line-height: 1.25; margin-bottom: 0.25rem; min-height: 2.3em; }
   .videos-list.is-grid .desc {
-    font-size: .78rem; line-height: 1.5;
+    font-size: .78rem; line-height: 1.5; min-height: 3em;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .videos-list.is-grid .pills { padding-top: .55rem; }
@@ -213,7 +213,7 @@ wide: true
 {% if videos.size == 0 %}
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
 {% else %}
-<section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题" data-page-size="18">
+<section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题" data-page-size="20">
   <div class="videos-toolbar">
     <div class="mg-filter-bar" data-filter-chips></div>
     <div class="mg-view-toggle" role="group" aria-label="视图切换">
