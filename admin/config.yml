@@ -73,3 +73,21 @@ collections:
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: pdf_url, label: "R2 PDF 直链", widget: string, hint: "填 R2 里 PDF 的公开链接，页面内嵌翻阅，文件不进 git" }
       - { name: body, label: "正文（可留空）", widget: markdown, required: false }
+
+  # ============ 书笺：标题 + 书影 + 笺注正文 ============
+  - name: "shujian"
+    label: "书笺"
+    label_singular: "一条书笺"
+    folder: "_shujian"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: shujian }
+      - { name: title, label: "书名 / 篇名", widget: string }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: author, label: "原作者（可留空）", widget: string, required: false }
+      - { name: description, label: "一句话笺注（可留空）", widget: string, required: false }
+      - { name: cover, label: "书影 / 封面图", widget: image, required: false }
+      - { name: body, label: "正文（笺注内容）", widget: markdown }

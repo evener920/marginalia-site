@@ -1,0 +1,88 @@
+---
+layout: default
+---
+<div class="wrap">
+  <article class="page shujian-page">
+    <header class="page-header shujian-header">
+      <p class="kicker shujian-kicker">📖 书笺</p>
+      <h1>{{ page.title }}</h1>
+      {% if page.description %}<p class="shujian-lede">{{ page.description }}</p>{% endif %}
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.author %}<span class="dot">·</span><span>{{ page.author }}</span>{% endif %}
+      </p>
+    </header>
+
+    {% if page.cover %}
+    <div class="shujian-cover">
+      <img src="{{ page.cover | relative_url }}" alt="" loading="lazy">
+    </div>
+    {% endif %}
+
+    <div class="page-body shujian-body">
+      {{ content }}
+    </div>
+
+    <footer class="post-footer">
+      {% include reactions.html slug=page.url title=page.title url=page.url %}
+      <p><a class="back" href="{{ '/shujian/' | relative_url }}">← 所有书笺</a></p>
+    </footer>
+  </article>
+</div>
+
+<style>
+  .shujian-page { max-width: var(--wide); }
+  .shujian-header { border-bottom: 1px solid var(--rule); padding-bottom: 1.4rem; margin-bottom: 1.8rem; }
+  .shujian-kicker {
+    color: var(--accent);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    margin: 0 0 0.6rem;
+    font-family: var(--sans);
+  }
+  .shujian-header h1 {
+    font-family: var(--serif);
+    font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 0.8rem;
+    letter-spacing: -0.005em;
+  }
+  .shujian-lede {
+    font-size: 1.05rem;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0 0 0.8rem;
+    max-width: 60ch;
+  }
+  .shujian-cover {
+    max-width: 320px;
+    margin: 0 0 2rem;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08);
+  }
+  .shujian-cover img { width: 100%; display: block; }
+  .shujian-body { font-size: 1.02rem; line-height: 1.75; }
+  .shujian-body h2 {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    margin: 2.2rem 0 0.9rem;
+    padding-left: 0.6rem;
+    border-left: 3px solid var(--accent);
+  }
+  .shujian-body h3 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    margin: 1.6rem 0 0.5rem;
+  }
+  .shujian-body blockquote {
+    border-left: 3px solid var(--accent-soft);
+    padding-left: 1rem;
+    margin: 1.2rem 0;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .shujian-author { color: var(--muted); }
+</style>

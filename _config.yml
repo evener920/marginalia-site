@@ -58,6 +58,9 @@ collections:
   docs:
     output: true
     permalink: /docs/:name/
+  shujian:
+    output: true
+    permalink: /shujian/:name/
 
 exclude:
   - README.md
@@ -97,8 +100,7 @@ nav:
   - name: 文档
     link: /docs/
   - name: 书笺
-    link: https://shujian.201573.xyz/book?id=break-label
-    external: true
+    link: /shujian/
   - name: 关于
     link: /about/
   - name: 归档
@@ -119,7 +121,6 @@ streams:
     image: /assets/img/site/emblem-notes.jpg
     desc: 你上传的书目、资料与 PDF 文档。
   - title: 书笺
-    link: https://shujian.201573.xyz/book?id=break-label
+    link: /shujian/
     image: /assets/img/site/emblem-notes.jpg
-    desc: 读书笺注 · 我的外部书架。
-    external: true
+    desc: 读书笺注 · 你写下的书边批语。
