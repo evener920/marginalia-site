@@ -61,22 +61,47 @@
     paint();
   }
 
-  /* ---- 夜读伴奏（Lyria 生成的 ambient loop；永不自动播放）---- */
-  var audio = null;
+  /* ---- 夜读伴奏（ambient 播放列表；永不自动播放）----
+     data-src 支持逗号分隔的多条音频，播完自动切下一首并循环到列表开头。 */
+  var ambientPlaylist = [];
+  var ambientTrack = 0;
+  var ambientPlayer = null;
+
+  function ambientSetPlaying(on) {
+    document.querySelectorAll('[data-ambient]').forEach(function (b) {
+      if (on) { b.classList.add('playing'); } else { b.classList.remove('playing'); }
+    });
+  }
+
+  function ambientLoad(i) {
+    if (!ambientPlayer || i < 0 || i >= ambientPlaylist.length) return;
+    ambientTrack = i;
+    ambientPlayer.src = ambientPlaylist[ambientTrack];
+  }
+
   document.querySelectorAll('[data-ambient]').forEach(function (btn) {
+    // 解析各按钮的 data-src（逗号分隔），合并去重成全局播放列表
+    (btn.getAttribute('data-src') || '')
+      .split(',').map(function (s) { return s.trim(); }).filter(Boolean)
+      .forEach(function (u) { if (ambientPlaylist.indexOf(u) === -1) ambientPlaylist.push(u); });
+
     btn.addEventListener('click', function () {
-      if (!audio) {
-        audio = new Audio(btn.getAttribute('data-src'));
-        audio.loop = true;
-        audio.volume = 0.55;
+      if (ambientPlaylist.length === 0) return;
+      if (!ambientPlayer) {
+        ambientPlayer = new Audio();
+        ambientPlayer.volume = 0.55;
+        ambientPlayer.addEventListener('ended', function () {
+          // 播完自动切下一首，循环回列表开头
+          ambientLoad((ambientTrack + 1) % ambientPlaylist.length);
+          ambientPlayer.play().then(function () { ambientSetPlaying(true); }).catch(function () {});
+        });
       }
-      if (audio.paused) {
-        audio.play().then(function () {
-          document.querySelectorAll('[data-ambient]').forEach(function (b) { b.classList.add('playing'); });
-        }).catch(function () {});
+      if (ambientPlayer.paused) {
+        if (!ambientPlayer.src) ambientLoad(ambientTrack);
+        ambientPlayer.play().then(function () { ambientSetPlaying(true); }).catch(function () {});
       } else {
-        audio.pause();
-        document.querySelectorAll('[data-ambient]').forEach(function (b) { b.classList.remove('playing'); });
+        ambientPlayer.pause();
+        ambientSetPlaying(false);
       }
     });
   });
