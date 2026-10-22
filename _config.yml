@@ -95,6 +95,8 @@ defaults:
 nav:
   - name: 首页
     link: /
+  - name: 文章
+    link: /articles/
   - name: 视频
     link: /videos/
   - name: 文档
@@ -109,7 +111,7 @@ nav:
 # 首页「栏目」卡片区：想加/删/改首页栏目卡片，只改这里（image 可留空）
 streams:
   - title: 文章
-    link: /
+    link: /articles/
     image: /assets/img/site/emblem-notes.jpg
     desc: 你写下的每一篇文章与随笔。
   - title: 视频
