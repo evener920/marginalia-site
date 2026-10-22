@@ -98,26 +98,36 @@ wide: true
   .v-pager-info { margin-left: auto; font-size: .8rem; color: var(--muted); letter-spacing: .05em; }
   @media (max-width: 720px) { .v-pager-info { margin-left: 0; width: 100%; text-align: center; } }
 
-  /* —— 网格视图（等高卡片，居中换行）—— */
+  /* —— 网格视图（小书架式：矮卡片、小书影、等高对齐）—— */
   .shujian-list.is-grid {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 1rem; margin-top: 1.4rem;
+    gap: 0.9rem; margin-top: 1.4rem;
   }
   .shujian-list.is-grid > li {
     display: flex; flex-direction: column; padding: 0;
-    flex: 0 0 auto; width: calc(25% - 0.75rem);
+    flex: 0 0 auto; width: calc(16.666% - 0.75rem);
     border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
     background: var(--bg-tint); box-shadow: 0 3px 10px rgba(31, 29, 27, 0.05);
   }
-  @media (max-width: 1200px) { .shujian-list.is-grid > li { width: calc(25% - 0.75rem); } }
-  @media (max-width: 900px)  { .shujian-list.is-grid > li { width: calc(33.333% - 0.667rem); } }
-  @media (max-width: 640px)  { .shujian-list.is-grid > li { width: calc(50% - 0.5rem); } }
-  @media (max-width: 420px)  { .shujian-list.is-grid > li { width: 100%; } }
-  .shujian-list.is-grid .thumb { width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 0; font-size: 2rem; }
-  .shujian-list.is-grid .meta { padding: 0.65rem 0.8rem 0.8rem; flex: 1; }
-  .shujian-list.is-grid .title { font-size: 0.95rem; line-height: 1.3; margin-bottom: 0.25rem; min-height: 2.5em; }
+  @media (max-width: 1200px) { .shujian-list.is-grid > li { width: calc(20% - 0.72rem); } }
+  @media (max-width: 900px)  { .shujian-list.is-grid > li { width: calc(25% - 0.675rem); } }
+  @media (max-width: 640px)  { .shujian-list.is-grid > li { width: calc(33.333% - 0.6rem); } }
+  @media (max-width: 420px)  { .shujian-list.is-grid > li { width: calc(50% - 0.45rem); } }
+  .shujian-list.is-grid .thumb {
+    width: 100%; height: 150px; aspect-ratio: auto;
+    border: 0; border-radius: 0; font-size: 1.6rem;
+    display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid var(--rule);
+  }
+  .shujian-list.is-grid .thumb img {
+    width: auto; height: auto; max-width: 72%; max-height: 84%;
+    object-fit: contain; display: block;
+    box-shadow: 0 2px 8px rgba(31, 29, 27, 0.18);
+  }
+  .shujian-list.is-grid .meta { padding: 0.55rem 0.65rem 0.65rem; flex: 1; }
+  .shujian-list.is-grid .title { font-size: 0.85rem; line-height: 1.3; margin-bottom: 0.2rem; min-height: 2.3em; }
   .shujian-list.is-grid .desc {
-    font-size: .78rem; line-height: 1.5; min-height: 3em;
+    font-size: .72rem; line-height: 1.5; min-height: 2.7em;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
 </style>
