@@ -53,8 +53,10 @@
 
       var CODE_LABELS = ["Code Block", "代码块"];
       var IMG_LABELS  = ["Image", "图片"];
+      var URL_LABELS  = ["图片链接"];
       var SVG_CODE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
       var SVG_IMG  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+      var SVG_URL  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
       function textOf(el) { return (el.textContent || "").trim(); }
       function isVisible(el) { return !!(el && el.offsetParent); }
@@ -84,7 +86,7 @@
       /* 菜单一出现就隐藏（仅当 hiding 为真），消除下拉位移/闪烁 */
       new MutationObserver(function () {
         if (!hiding) return;
-        var m = findMenuItem(CODE_LABELS) || findMenuItem(IMG_LABELS);
+        var m = findMenuItem(CODE_LABELS) || findMenuItem(IMG_LABELS) || findMenuItem(URL_LABELS);
         if (m) {
           var box = m.closest("ul") || m.parentElement;
           if (box) box.style.visibility = "hidden";
@@ -125,9 +127,11 @@
         }
 
         var pinCode = makePin(SVG_CODE, "代码块", CODE_LABELS);
-        var pinImg  = makePin(SVG_IMG,  "图片",   IMG_LABELS);
+        var pinImg  = makePin(SVG_IMG,  "上传图片",   IMG_LABELS);
+        var pinUrl  = makePin(SVG_URL,  "图片链接（填直链）", URL_LABELS);
         toolbar.insertBefore(pinImg, anchor);
-        toolbar.insertBefore(pinCode, pinImg);
+        toolbar.insertBefore(pinUrl, pinImg);
+        toolbar.insertBefore(pinCode, pinUrl);
         toolbar.dataset.mgPin = "1";
       }
 
