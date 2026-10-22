@@ -33,7 +33,7 @@ layout: default
 
   <section class="stream-grid" aria-label="栏目">
     {% for s in site.streams %}
-    <a class="stream-card reveal" style="--d:{{ forloop.index0 }}" href="{{ s.link | relative_url }}">
+    <a class="stream-card reveal" style="--d:{{ forloop.index0 }}" {% if s.external %}href="{{ s.link }}" target="_blank" rel="noopener"{% else %}href="{{ s.link | relative_url }}"{% endif %}>
       {% if s.image %}<img src="{{ s.image | relative_url }}" alt="" loading="lazy">{% endif %}
       <div class="stream-body">
         <h3>{{ s.title }}</h3>
