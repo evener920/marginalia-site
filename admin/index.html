@@ -7,8 +7,38 @@
     <title>内容管理 · Marginalia</title>
   </head>
   <body>
-    <!-- Decap CMS 会自动加载同目录下的 config.yml -->
+    <!-- Decap CMS 会自动加载同目录下的 config.yml；CMS_MANUAL_INIT = 先注册自定义组件再手动 init -->
+    <script>window.CMS_MANUAL_INIT = true;</script>
     <script src="https://unpkg.com/decap-cms@^3.3.3/dist/decap-cms.js"></script>
+    <script>
+    /* ============================================================
+       自定义编辑组件「图片链接」：解决 Decap 图片组件只能上传、不能贴外链的问题。
+       点 + → 图片链接 → 填直链即可插入 ![说明](URL)，外链 / 站内 / R2 都可以。
+       pattern 与标准 Markdown 图片语法一致，已有正文里的图片可正常回显编辑。
+       ============================================================ */
+    window.addEventListener('load', function () {
+      try {
+        if (window.CMS && CMS.registerEditorComponent) {
+          CMS.registerEditorComponent({
+            id: 'image-url',
+            label: '图片链接',
+            icon: 'image',
+            fields: [
+              { name: 'alt', label: '图片说明（可空）', widget: 'string', required: false },
+              { name: 'url', label: '图片直链（https:// 开头或 /assets/img/... ）', widget: 'string' },
+            ],
+            pattern: /^!\[([^\]]*)\]\(([^)\s]+)\)$/,
+            fromBlock: function (m) { return { alt: m[1], url: m[2] }; },
+            toBlock: function (o) { return '![' + (o.alt || '') + '](' + (o.url || '') + ')'; },
+            toPreview: function (o) {
+              return '<img src="' + (o.url || '') + '" alt="' + (o.alt || '') + '" style="max-width:100%">';
+            },
+          });
+        }
+      } catch (e) { /* 注册失败不影响 CMS 使用 */ }
+      try { if (window.CMS && CMS.init) CMS.init(); } catch (e) { /* 兜底：Decap 自动初始化 */ }
+    });
+    </script>
     <script>
     /* ============================================================
        把「代码块 / 图片」提升为工具栏独立按钮。
