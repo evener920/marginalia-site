@@ -164,6 +164,39 @@ wide: true
   .v-pager-gap { color: var(--muted); padding: 0 4px; }
   .v-pager-info { margin-left: auto; font-size: .8rem; color: var(--muted); letter-spacing: .05em; }
   @media (max-width: 720px) { .v-pager-info { margin-left: 0; width: 100%; text-align: center; } }
+
+  /* —— 视图切换（列表 / 网格）—— */
+  .videos-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .videos-toolbar .mg-filter-bar { flex: 1 1 auto; }
+  .mg-view-toggle { display: inline-flex; gap: 6px; margin-top: 1.6rem; }
+  .mg-view-toggle button {
+    font: inherit; cursor: pointer; border: 1px solid var(--rule);
+    background: var(--bg-tint); color: var(--muted);
+    padding: 5px 12px; border-radius: 2px; font-size: .82rem; letter-spacing: .04em;
+    transition: border-color .2s, color .2s, background .2s; font-family: var(--sans);
+  }
+  .mg-view-toggle button:hover { color: var(--accent); border-color: var(--accent-soft); }
+  .mg-view-toggle button.active { background: var(--accent); color: #fbf8f1; border-color: var(--accent); }
+
+  .videos-list.is-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 1.3rem; margin-top: 1.6rem;
+  }
+  .videos-list.is-grid > li {
+    display: flex; flex-direction: column; padding: 0;
+    border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
+    background: var(--bg-tint); box-shadow: 0 3px 10px rgba(31, 29, 27, 0.05);
+  }
+  .videos-list.is-grid .poster { width: 100%; aspect-ratio: 4 / 3; border: 0; border-radius: 0; }
+  .videos-list.is-grid .poster img { object-fit: cover; }
+  .videos-list.is-grid .meta { padding: 0.85rem 1rem 1rem; }
+  .videos-list.is-grid .title { font-size: 1.05rem; }
+  .videos-list.is-grid .desc {
+    font-size: .88rem;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .videos-list.is-grid .pills { padding-top: .3rem; }
+  .videos-list.is-grid .mg-card-react { display: none; }
 </style>
 
 每周一条，把全球 AI 大事讲给一线工程师听。脚本生成 — MiniMax TTS 主播口播 + Hailuo AI B-roll + Remotion 动效 + 字幕条 + 背景音乐。不复述新闻，只挑会改变你写代码方式的更新。
@@ -175,7 +208,13 @@ wide: true
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
 {% else %}
 <section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题" data-page-size="18">
-  <div class="mg-filter-bar" data-filter-chips></div>
+  <div class="videos-toolbar">
+    <div class="mg-filter-bar" data-filter-chips></div>
+    <div class="mg-view-toggle" role="group" aria-label="视图切换">
+      <button type="button" data-view="list" class="active" title="列表视图">☰ 列表</button>
+      <button type="button" data-view="grid" title="网格视图">▦ 网格</button>
+    </div>
+  </div>
   <ul class="videos-list">
     {% for v in videos %}
     {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
@@ -206,4 +245,27 @@ wide: true
 </section>
 {% endif %}
 
+<script>
+/* 视图切换：列表 / 网格，localStorage 记住偏好 */
+(function () {
+  var KEY = 'videos-view';
+  var ul = document.querySelector('.videos-list');
+  var tg = document.querySelector('.mg-view-toggle');
+  if (!ul || !tg) return;
+  function set(v) {
+    ul.classList.toggle('is-grid', v === 'grid');
+    tg.querySelectorAll('button').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-view') === v);
+    });
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+  }
+  tg.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) set(b.getAttribute('data-view'));
+  });
+  var saved = 'list';
+  try { saved = localStorage.getItem(KEY) || 'list'; } catch (e) {}
+  set(saved);
+})();
+</script>
 <script src="{{ '/assets/js/filter.js' | relative_url }}?v=20261022" defer></script>
