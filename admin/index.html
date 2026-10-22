@@ -7,9 +7,9 @@
     <title>内容管理 · Marginalia</title>
   </head>
   <body>
-    <!-- Decap CMS 会自动加载同目录下的 config.yml；CMS_MANUAL_INIT = 先注册自定义组件再手动 init -->
+    <!-- Decap CMS：版本锁定 3.17.1（避免 ^ 漂移导致编辑器行为变化）；CMS_MANUAL_INIT = 先注册自定义组件再手动 init -->
     <script>window.CMS_MANUAL_INIT = true;</script>
-    <script src="https://unpkg.com/decap-cms@^3.3.3/dist/decap-cms.js"></script>
+    <script src="https://unpkg.com/decap-cms@3.17.1/dist/decap-cms.js"></script>
     <script>
     /* ============================================================
        自定义编辑组件「图片链接」：
@@ -41,12 +41,14 @@
     </script>
     <script>
     /* ============================================================
-       工具栏改造 + 自建插图弹框（适配 Decap 3.x 的 Slate 编辑器）
-       1) 删除 + 下拉按钮（title="Add Component"），原位放一枚
-          「图片链接」按钮，点击直接弹自建弹框
-          （工具栏随编辑会整条重挂载，故用 MutationObserver 持续补挂）
-       2) 插入逻辑三级兜底：Slate（data-slate-editor + execCommand）
-          → CodeMirror5 → textarea（Raw Markdown 模式）
+       工具栏改造 + 自建插图弹框 v3（Decap 3.17.x，Slate 编辑器）
+       1) 删除 + 下拉按钮（title="Add Component"），原位放「图片链接」
+          按钮，点击直接弹自建弹框；MutationObserver 持续补挂
+       2) 插入检测四级兜底 + 三种写入通道：
+          定位：弹框打开时记录按钮所在字段容器 → 最后聚焦的编辑器 → 全文档
+          写入：Slate(contenteditable) execCommand → CodeMirror → textarea
+          校验：Slate 写入后验证 DOM 里真的出现了 URL，失败自动换通道
+          仍失败：alert 附诊断计数，便于一次截图定位
        ============================================================ */
     (function () {
       if (window.__mgImgDlg) return;
@@ -58,35 +60,52 @@
         return !!(el && el.closest && el.closest('[role="dialog"], [class*="modal" i], [class*="Modal"]'));
       }
       function textOf(el) { return (el.textContent || '').trim(); }
-      function visible(el) { return !!(el && el.offsetParent); }
 
       /* ---------- 编辑器实例追踪（focusin 捕获，谁最后有焦点记谁） ---------- */
       var lastEditor = null, lastTextarea = null, lastCM = null;
       document.addEventListener('focusin', function (e) {
         var t = e.target;
         if (!t || !t.closest) return;
-        var ed = t.closest('[data-slate-editor="true"]');
+        if (dlg && dlg.contains(t)) return;                       // 弹框里的输入框不算
+        var ed = t.closest('[data-slate-editor="true"], [contenteditable="true"]');
         if (ed) { lastEditor = ed; return; }
         if (t.tagName === 'TEXTAREA') { lastTextarea = t; return; }
         var cmEl = t.closest('.CodeMirror');
         if (cmEl && cmEl.CodeMirror) lastCM = cmEl.CodeMirror;
       }, true);
 
-      function pickSlate() {
-        if (lastEditor && document.contains(lastEditor)) return lastEditor;
-        var eds = document.querySelectorAll('[data-slate-editor="true"]');
-        for (var i = 0; i < eds.length; i++) { if (visible(eds[i])) return eds[i]; }
-        return eds.length ? eds[eds.length - 1] : null;
-      }
-      function pickTextarea() {
-        if (lastTextarea && document.contains(lastTextarea) && visible(lastTextarea)) return lastTextarea;
-        var tas = document.querySelectorAll('textarea');
-        for (var i = 0; i < tas.length; i++) { if (visible(tas[i])) return tas[i]; }
+      /* ---------- 从工具栏按钮出发，找它所属字段容器里的编辑器 ---------- */
+      function findRoot(btn) {
+        var el = btn, i;
+        for (i = 0; i < 8 && el && el !== document.body; i++, el = el.parentElement) {
+          try {
+            var hit = el.querySelector('[data-slate-editor="true"], .CodeMirror, textarea');
+            if (hit) return el;
+          } catch (e) { /* continue */ }
+        }
         return null;
+      }
+      function qAll(root, sel) {
+        try { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+        catch (e) { return []; }
+      }
+      function pickEditors(root) {
+        var seen = {}, out = [], i, list;
+        list = qAll(root, '[data-slate-editor="true"]').concat(qAll(root, '[contenteditable="true"]'));
+        for (i = 0; i < list.length; i++) {
+          if (dlg && dlg.contains(list[i])) continue;             // 排除弹框自身
+          if (!seen[list[i]]) { seen[list[i]] = 1; out.push(list[i]); }
+        }
+        return out;
+      }
+      function pickTextareas(root) {
+        var out = [], list = qAll(root, 'textarea'), i;
+        for (i = 0; i < list.length; i++) { if (!(dlg && dlg.contains(list[i]))) out.push(list[i]); }
+        return out;
       }
 
       /* ---------- 自建弹框 ---------- */
-      var dlg = null, dlgAlt = null, dlgUrl = null;
+      var dlg = null, dlgAlt = null, dlgUrl = null, ctxRoot = null;
 
       function buildDlg() {
         dlg = document.createElement('div');
@@ -118,8 +137,9 @@
         });
       }
 
-      function openDlg() {
+      function openDlg(ctxBtn) {
         if (!dlg) buildDlg();
+        ctxRoot = ctxBtn ? findRoot(ctxBtn) : null;               // 记住按钮属于哪个字段
         dlgAlt.value = '';
         dlgUrl.value = '';
         dlg.style.display = 'flex';
@@ -127,52 +147,71 @@
       }
       function closeDlg() { if (dlg) dlg.style.display = 'none'; }
 
-      /* ---------- 插入：Slate → CodeMirror → textarea 三级兜底 ---------- */
+      /* ---------- 写入通道 ---------- */
+      function slateInsert(ed, md, url) {
+        try {
+          ed.focus();
+          var sel = window.getSelection();
+          var inside = sel.rangeCount > 0 && ed.contains(sel.anchorNode);
+          if (!inside) {
+            var r = document.createRange();
+            r.selectNodeContents(ed);
+            r.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+          document.execCommand('insertText', false, md);
+          /* 校验：DOM 里真的出现 URL 才算成功 */
+          return (ed.textContent || '').indexOf(url) !== -1;
+        } catch (e) { return false; }
+      }
+      function cmInsert(md) {
+        if (lastCM && lastCM.replaceSelection && document.contains(lastCM.getTextArea ? lastCM.getTextArea() : null)) {
+          try { lastCM.replaceSelection(md); lastCM.focus(); return true; } catch (e) { return false; }
+        }
+        return false;
+      }
+      function taInsert(ta, md) {
+        try {
+          var s = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+          var eEnd = ta.selectionEnd == null ? s : ta.selectionEnd;
+          ta.focus();
+          ta.setRangeText(md, s, eEnd, 'end');
+          try { ta.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { /* 老浏览器忽略 */ }
+          return true;
+        } catch (e) { return false; }
+      }
+
+      /* ---------- 插入：定位（ctxRoot→last→文档）× 写入（Slate→CM→textarea） ---------- */
       function insertMd() {
         var url = (dlgUrl.value || '').trim().replace(/\s+/g, '');
         var alt = (dlgAlt.value || '').trim().replace(/[\[\]]/g, '');
         if (!url) { dlgUrl.style.borderColor = '#d9534f'; dlgUrl.focus(); return; }
         var md = '![' + alt + '](' + url + ')';
 
-        /* 1) Slate（Rich Text 模式） */
-        var ed = pickSlate();
-        if (ed) {
-          try {
-            ed.focus();
-            var sel = window.getSelection();
-            var inside = sel.rangeCount > 0 && ed.contains(sel.anchorNode);
-            if (!inside) {
-              var r = document.createRange();
-              r.selectNodeContents(ed);
-              r.collapse(false);
-              sel.removeAllRanges();
-              sel.addRange(r);
-            }
-            document.execCommand('insertText', false, md);
-            closeDlg();
-            return;
-          } catch (e) { /* 落到下一级 */ }
+        /* 候选编辑器：字段容器内 → 最后聚焦的 → 全文档 */
+        var candidates = [], i;
+        candidates = candidates.concat(pickEditors(ctxRoot));
+        if (lastEditor && document.contains(lastEditor)) candidates.push(lastEditor);
+        candidates = candidates.concat(pickEditors(document));
+        for (i = 0; i < candidates.length; i++) {
+          if (slateInsert(candidates[i], md, url)) { closeDlg(); return; }
         }
-        /* 2) CodeMirror 5（老版本） */
-        if (lastCM && lastCM.replaceSelection) {
-          try {
-            lastCM.replaceSelection(md);
-            lastCM.focus();
-            closeDlg();
-            return;
-          } catch (e) { /* 落到下一级 */ }
-        }
-        /* 3) textarea（Raw Markdown 模式） */
-        var ta = pickTextarea();
-        if (ta && ta.setSelectionRange) {
-          var s = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
-          var eEnd = ta.selectionEnd == null ? s : ta.selectionEnd;
-          ta.setRangeText(md, s, eEnd, 'end');
-          ta.focus();
-          closeDlg();
-          return;
-        }
-        window.alert('未找到正文编辑器，请把光标点进正文后再试。');
+        /* CodeMirror（老版本兜底） */
+        if (cmInsert(md)) { closeDlg(); return; }
+        /* textarea：字段容器内 → 最后聚焦的 → 全文档 */
+        var tas = pickTextareas(ctxRoot);
+        if (lastTextarea && document.contains(lastTextarea)) tas.push(lastTextarea);
+        tas = tas.concat(pickTextareas(document));
+        for (i = 0; i < tas.length; i++) { if (taInsert(tas[i], md)) { closeDlg(); return; } }
+
+        /* 全部失败：附诊断计数，截图即可定位 */
+        var nSlate = qAll(document, '[data-slate-editor="true"]').length;
+        var nCE = qAll(document, '[contenteditable="true"]').length;
+        var nTA = pickTextareas(document).length;
+        var nCM = qAll(document, '.CodeMirror').length;
+        window.alert('未找到可插入的正文编辑器\n[诊断 slate=' + nSlate + ' contenteditable=' + nCE +
+          ' textarea=' + nTA + ' codemirror=' + nCM + ']\n请截图发我，并把光标点进正文后再试一次。');
       }
 
       /* ---------- 工具栏：删 + 下拉，原位放「图片链接」按钮 ---------- */
@@ -198,7 +237,7 @@
         mine.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          openDlg();
+          openDlg(mine);                             // 把按钮传进去，锁定字段容器
         });
         plus.parentNode.insertBefore(mine, plus);
         plus.style.display = 'none';                 // 删掉 + 下拉按钮
@@ -219,7 +258,7 @@
           if (textOf(t) !== '图片链接') return;
           e.preventDefault();
           e.stopPropagation();
-          openDlg();
+          openDlg(t);
         } catch (err) { /* 静默 */ }
       }, true);
 
