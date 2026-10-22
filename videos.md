@@ -206,4 +206,4 @@ wide: true
 </section>
 {% endif %}
 
-<script src="{{ '/assets/js/filter.js' | relative_url }}" defer></script>
+<script src="{{ '/assets/js/filter.js' | relative_url }}?v=20261022" defer></script>
