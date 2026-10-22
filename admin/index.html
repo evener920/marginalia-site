@@ -13,9 +13,8 @@
     <script>
     /* ============================================================
        自定义编辑组件「图片链接」：
-       - 注册组件用于已有 ![alt](url) 的回显/点击编辑（round-trip）
-       - 菜单点击的弹框由下方自建 dialog 接管（Decap 原生点击组件
-         只会插块不弹框，体验不对）
+       - 注册组件让已有 ![alt](url) 在 Rich Text 里可回显/点击编辑
+       - 插图入口由下方自建工具栏按钮 + 弹框接管
        ============================================================ */
     window.addEventListener('load', function () {
       try {
@@ -42,62 +41,51 @@
     </script>
     <script>
     /* ============================================================
-       1) 精简 + 菜单：隐藏用不到的「Code Block」项（Image/上传 保留）
-       2) 「图片链接」点击弹框：自建 modal（说明 + 直链），确认后把
-          ![alt](url) 插入当前 CodeMirror 光标处。
-          不再钉工具栏按钮（与 + 菜单重复且 DOM 注入不稳定）。
-       任何一步失败都静默跳过，不影响后台正常使用。
+       工具栏改造 + 自建插图弹框（适配 Decap 3.x 的 Slate 编辑器）
+       1) 删除 + 下拉按钮（title="Add Component"），原位放一枚
+          「图片链接」按钮，点击直接弹自建弹框
+          （工具栏随编辑会整条重挂载，故用 MutationObserver 持续补挂）
+       2) 插入逻辑三级兜底：Slate（data-slate-editor + execCommand）
+          → CodeMirror5 → textarea（Raw Markdown 模式）
        ============================================================ */
     (function () {
       if (window.__mgImgDlg) return;
       window.__mgImgDlg = true;
 
-      /* ---------- 通用 ---------- */
+      var SVG_IMG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+
       function inModal(el) {
         return !!(el && el.closest && el.closest('[role="dialog"], [class*="modal" i], [class*="Modal"]'));
       }
       function textOf(el) { return (el.textContent || '').trim(); }
+      function visible(el) { return !!(el && el.offsetParent); }
 
-      /* ---------- 1) 隐藏 + 菜单里的 Code Block ---------- */
-      var hideScheduled = false;
-      function hideCodeBlockItems() {
-        hideScheduled = false;
-        try {
-          var els = document.querySelectorAll('button, [role="menuitem"], li, a');
-          for (var i = 0; i < els.length; i++) {
-            var el = els[i];
-            if (el.dataset && el.dataset.mgHide === '1') continue;
-            var t = textOf(el);
-            if ((t === 'Code Block' || t === '代码块') && !inModal(el)) {
-              el.style.display = 'none';
-              if (el.dataset) el.dataset.mgHide = '1';
-            }
-          }
-        } catch (e) { /* 静默 */ }
-      }
-      new MutationObserver(function () {
-        if (hideScheduled) return;
-        hideScheduled = true;
-        requestAnimationFrame(hideCodeBlockItems);
-      }).observe(document.body, { childList: true, subtree: true });
-
-      /* ---------- 2) 自建「图片链接」弹框 ---------- */
-      var lastCM = null; // 最近获得焦点的 CodeMirror 实例
+      /* ---------- 编辑器实例追踪（focusin 捕获，谁最后有焦点记谁） ---------- */
+      var lastEditor = null, lastTextarea = null, lastCM = null;
       document.addEventListener('focusin', function (e) {
-        var el = e.target && e.target.closest ? e.target.closest('.CodeMirror') : null;
-        if (el && el.CodeMirror) lastCM = el.CodeMirror;
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var ed = t.closest('[data-slate-editor="true"]');
+        if (ed) { lastEditor = ed; return; }
+        if (t.tagName === 'TEXTAREA') { lastTextarea = t; return; }
+        var cmEl = t.closest('.CodeMirror');
+        if (cmEl && cmEl.CodeMirror) lastCM = cmEl.CodeMirror;
       }, true);
 
-      function pickCM() {
-        var els = document.querySelectorAll('.CodeMirror');
-        var insts = [];
-        for (var i = 0; i < els.length; i++) { if (els[i].CodeMirror) insts.push(els[i].CodeMirror); }
-        if (!insts.length) return null;
-        for (var j = 0; j < insts.length; j++) { if (insts[j].hasFocus && insts[j].hasFocus()) return insts[j]; }
-        if (lastCM && insts.indexOf(lastCM) !== -1) return lastCM;
-        return insts[insts.length - 1];
+      function pickSlate() {
+        if (lastEditor && document.contains(lastEditor)) return lastEditor;
+        var eds = document.querySelectorAll('[data-slate-editor="true"]');
+        for (var i = 0; i < eds.length; i++) { if (visible(eds[i])) return eds[i]; }
+        return eds.length ? eds[eds.length - 1] : null;
+      }
+      function pickTextarea() {
+        if (lastTextarea && document.contains(lastTextarea) && visible(lastTextarea)) return lastTextarea;
+        var tas = document.querySelectorAll('textarea');
+        for (var i = 0; i < tas.length; i++) { if (visible(tas[i])) return tas[i]; }
+        return null;
       }
 
+      /* ---------- 自建弹框 ---------- */
       var dlg = null, dlgAlt = null, dlgUrl = null;
 
       function buildDlg() {
@@ -139,21 +127,91 @@
       }
       function closeDlg() { if (dlg) dlg.style.display = 'none'; }
 
+      /* ---------- 插入：Slate → CodeMirror → textarea 三级兜底 ---------- */
       function insertMd() {
         var url = (dlgUrl.value || '').trim().replace(/\s+/g, '');
         var alt = (dlgAlt.value || '').trim().replace(/[\[\]]/g, '');
         if (!url) { dlgUrl.style.borderColor = '#d9534f'; dlgUrl.focus(); return; }
-        var cm = pickCM();
-        if (cm) {
-          cm.replaceSelection('![' + alt + '](' + url + ')');
-          try { cm.focus(); } catch (e) {}
-        } else {
-          window.alert('未找到正文编辑器，请把光标点进正文后再试。');
+        var md = '![' + alt + '](' + url + ')';
+
+        /* 1) Slate（Rich Text 模式） */
+        var ed = pickSlate();
+        if (ed) {
+          try {
+            ed.focus();
+            var sel = window.getSelection();
+            var inside = sel.rangeCount > 0 && ed.contains(sel.anchorNode);
+            if (!inside) {
+              var r = document.createRange();
+              r.selectNodeContents(ed);
+              r.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(r);
+            }
+            document.execCommand('insertText', false, md);
+            closeDlg();
+            return;
+          } catch (e) { /* 落到下一级 */ }
         }
-        closeDlg();
+        /* 2) CodeMirror 5（老版本） */
+        if (lastCM && lastCM.replaceSelection) {
+          try {
+            lastCM.replaceSelection(md);
+            lastCM.focus();
+            closeDlg();
+            return;
+          } catch (e) { /* 落到下一级 */ }
+        }
+        /* 3) textarea（Raw Markdown 模式） */
+        var ta = pickTextarea();
+        if (ta && ta.setSelectionRange) {
+          var s = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+          var eEnd = ta.selectionEnd == null ? s : ta.selectionEnd;
+          ta.setRangeText(md, s, eEnd, 'end');
+          ta.focus();
+          closeDlg();
+          return;
+        }
+        window.alert('未找到正文编辑器，请把光标点进正文后再试。');
       }
 
-      /* ---------- 3) 拦截 + 菜单里「图片链接」的点击，弹自建框 ---------- */
+      /* ---------- 工具栏：删 + 下拉，原位放「图片链接」按钮 ---------- */
+      function tidyToolbar() {
+        var plus = null;
+        var btns = document.querySelectorAll('button[title]');
+        for (var i = 0; i < btns.length; i++) {
+          var b = btns[i];
+          if (b.dataset && b.dataset.mgHandled === '1') continue;
+          var t = b.getAttribute('title') || '';
+          if (/component|组件|компонент/i.test(t)) { plus = b; break; }
+        }
+        if (!plus) return;
+        if (plus.dataset && plus.dataset.mgHandled === '1') return;
+
+        var mine = plus.cloneNode(false);            // 复制 styled-components 类名，继承样式
+        mine.removeAttribute('disabled');
+        mine.removeAttribute('id');
+        mine.setAttribute('title', '图片链接（弹框填直链）');
+        mine.setAttribute('data-mg-img', '1');
+        mine.innerHTML = SVG_IMG;
+        mine.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        mine.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openDlg();
+        });
+        plus.parentNode.insertBefore(mine, plus);
+        plus.style.display = 'none';                 // 删掉 + 下拉按钮
+        plus.dataset.mgHandled = '1';
+
+        /* 外层若只是 + 按钮的空壳包装，一并隐藏 */
+        var wrap = plus.parentElement;
+        if (wrap && wrap !== document.body && !textOf(wrap) && wrap.querySelectorAll('button').length <= 1) {
+          wrap.style.visibility = 'hidden';
+        }
+      }
+
+      /* ---------- 菜单兜底：若 + 未被识别仍可从菜单点「图片链接」 ---------- */
       document.addEventListener('click', function (e) {
         try {
           var t = e.target && e.target.closest ? e.target.closest('button, [role="menuitem"], li, a') : null;
@@ -162,8 +220,19 @@
           e.preventDefault();
           e.stopPropagation();
           openDlg();
-        } catch (err) { /* 静默，退回 Decap 原生行为 */ }
+        } catch (err) { /* 静默 */ }
       }, true);
+
+      /* ---------- 持续补挂（工具栏每次按键都会重挂载） ---------- */
+      var scheduled = false;
+      new MutationObserver(function () {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(function () {
+          scheduled = false;
+          try { tidyToolbar(); } catch (e) { /* 静默 */ }
+        });
+      }).observe(document.body, { childList: true, subtree: true });
     })();
     </script>
   </body>
