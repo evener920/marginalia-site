@@ -179,14 +179,18 @@ wide: true
   .mg-view-toggle button.active { background: var(--accent); color: #fbf8f1; border-color: var(--accent); }
 
   .videos-list.is-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    display: flex; flex-wrap: wrap; justify-content: center;
     gap: 1rem; margin-top: 1.4rem;
   }
   .videos-list.is-grid > li {
     display: flex; flex-direction: column; padding: 0;
+    flex: 0 0 auto; width: calc(25% - 0.75rem);
     border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
     background: var(--bg-tint); box-shadow: 0 3px 10px rgba(31, 29, 27, 0.05);
   }
+  @media (max-width: 1024px) { .videos-list.is-grid > li { width: calc(33.333% - 0.667rem); } }
+  @media (max-width: 720px)  { .videos-list.is-grid > li { width: calc(50% - 0.5rem); } }
+  @media (max-width: 460px)  { .videos-list.is-grid > li { width: 100%; } }
   .videos-list.is-grid .poster { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; }
   .videos-list.is-grid .poster img { object-fit: cover; }
   .videos-list.is-grid .meta { padding: 0.7rem 0.85rem 0.85rem; flex: 1; }
