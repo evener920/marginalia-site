@@ -2,10 +2,17 @@
 layout: default
 ---
 <div class="wrap">
-  {% comment %}归一化 douyin_id：数字 / /video/<id> / iesdouyin/share/video/<id> → 数字；短链若无数字则留空（降级外链）{% endcomment %}
+  {% comment %}归一化 douyin_id：数字 / /video/<id> / /note/<id> / iesdouyin/share/video/<id> → 数字；短链若无数字则留空（降级外链）{% endcomment %}
   {% assign douyin_raw = page.douyin_id | strip %}
   {% assign douyin_vid = "" %}
-  {% if douyin_raw contains "/video/" %}
+  {% assign douyin_is_note = false %}
+  {% if page.douyin_type == 'note' %}
+    {% assign douyin_is_note = true %}
+  {% endif %}
+  {% if douyin_raw contains "/note/" %}
+    {% assign douyin_is_note = true %}
+    {% assign _p = douyin_raw | split: "/note/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+  {% elsif douyin_raw contains "/video/" %}
     {% assign _p = douyin_raw | split: "/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
   {% elsif douyin_raw contains "/share/video/" %}
     {% assign _p = douyin_raw | split: "/share/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
@@ -13,6 +20,9 @@ layout: default
     {% comment %}短链：依赖构建期插件解析；解析失败则降级为下方外链{% endcomment %}
   {% else %}
     {% assign douyin_vid = douyin_raw %}
+  {% endif %}
+  {% if douyin_is_note and douyin_vid == "" %}
+    {% assign douyin_is_note = false %}
   {% endif %}
 
   <article class="page video-page">
@@ -31,7 +41,7 @@ layout: default
       </p>
     </header>
 
-    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif douyin_vid %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
+    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
       {% if page.stream_id %}
         {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
         <stream src="{{ page.stream_id }}" controls></stream>
@@ -44,7 +54,7 @@ layout: default
           referrerpolicy="no-referrer"
           loading="lazy"
         ></iframe>
-      {% elsif douyin_vid %}
+      {% elsif douyin_vid and douyin_is_note == false %}
         {# 抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App） #}
         <iframe
           src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0"
@@ -54,6 +64,12 @@ layout: default
           referrerpolicy="no-referrer"
           loading="lazy"
         ></iframe>
+      {% elsif douyin_vid and douyin_is_note %}
+        {# 抖音图文作品：开放播放器不支持图文，只给外链 #}
+        <div class="video-note-card">
+          <p class="video-note-icon">📄</p>
+          <p class="video-note-text">这是一条抖音<strong>图文作品</strong>，抖音开放播放器不支持内嵌图文，请在抖音内查看。</p>
+        </div>
       {% elsif page.video_url %}
         <video
           controls
@@ -88,8 +104,8 @@ layout: default
       </p>
     {% elsif douyin_vid %}
       <p class="video-bili-link">
-        视频托管于 抖音 ·
-        <a href="https://www.douyin.com/video/{{ douyin_vid }}" target="_blank" rel="noopener">在抖音打开</a>
+        {% if douyin_is_note %}图文作品托管于 抖音 ·{% else %}视频托管于 抖音 ·{% endif %}
+        <a href="https://www.douyin.com/{% if douyin_is_note %}note{% else %}video{% endif %}/{{ douyin_vid }}" target="_blank" rel="noopener">在抖音打开</a>
       </p>
     {% elsif page.douyin_id %}
       <p class="video-bili-link">
@@ -185,6 +201,18 @@ layout: default
     margin-left: auto; margin-right: auto;
   }
   .video-player--douyin iframe { border: 0; }
+  .video-player--note {
+    aspect-ratio: auto;
+    min-height: 220px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .video-note-card { text-align: center; padding: 1.6rem 1rem; max-width: 40ch; }
+  .video-note-icon { font-size: 2.2rem; margin: 0 0 0.6rem; }
+  .video-note-text {
+    font-size: 0.98rem; line-height: 1.7; color: var(--ink-soft);
+    font-family: var(--sans); margin: 0;
+  }
+  .video-note-text strong { color: var(--ink); }
   .video-player--stream stream,
   .video-player stream {
     width: 100%; height: 100%; display: block;

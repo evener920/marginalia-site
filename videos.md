@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Videos
-description: "Marginalia 视频专栏——AI 周报与解释类视频。脚本生成、TTS 配音、Remotion 动效、AI B-roll，电视新闻播报感。"
+description: "Marginalia 视频专栏——AI 周报与解释类视频，以及从抖音收藏迁移过来的知识类短片。"
 permalink: /videos/
 wide: true
 ---
@@ -67,6 +67,17 @@ wide: true
     letter-spacing: 0.05em;
     font-family: var(--sans);
   }
+  .videos-list .poster .src-mark {
+    position: absolute; left: 8px; bottom: 8px;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    padding: 3px 8px;
+    background: rgba(31, 29, 27, 0.7);
+    color: #fbf8f1;
+    border-radius: 2px;
+    font-family: var(--sans);
+  }
+  .videos-list .poster--source { background: var(--bg-tint); }
 
   .videos-list .meta { display: flex; flex-direction: column; }
   .videos-list .vol {
@@ -119,6 +130,7 @@ wide: true
   }
   .videos-list .pills span.brand-claude { color: var(--accent); border-color: rgba(139, 46, 42, 0.25); }
   .videos-list .pills span.brand-openai { color: #8a5a1f; border-color: rgba(138, 90, 31, 0.28); }
+  .videos-list .pills span.brand-douyin { color: #1f1d1b; border-color: rgba(31, 29, 27, 0.2); }
 
   .videos-empty {
     margin-top: 2rem;
@@ -140,18 +152,21 @@ wide: true
 
 每周一条，把全球 AI 大事讲给一线工程师听。脚本生成 — MiniMax TTS 主播口播 + Hailuo AI B-roll + Remotion 动效 + 字幕条 + 背景音乐。不复述新闻，只挑会改变你写代码方式的更新。
 
+另一部分是「抖音收藏」——从我的抖音收藏夹整体迁移过来的知识类短片，涵盖哲学、认知、教育、科普与传统文化，按原发布时间排序。
+
 {% assign videos = site.videos | sort: 'date' | reverse %}
 {% if videos.size == 0 %}
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
 {% else %}
-<section data-filter data-filter-all="全部" data-filter-order="AI 周报,专题">
+<section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题">
   <div class="mg-filter-bar" data-filter-chips></div>
   <ul class="videos-list">
     {% for v in videos %}
-    {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% else %}{% assign vcat = '专题' %}{% endif %}
+    {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
     <li data-cats="{{ vcat }}">
-      <a class="poster" href="{{ v.url | relative_url }}" aria-label="{{ v.title }}">
-        {% if v.poster %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">{% endif %}
+      <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title }}">
+        {% if v.poster %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
+        {% elsif v.tags contains 'douyin' %}<span class="src-mark">抖音</span>{% endif %}
         <span class="play"></span>
         {% if v.duration %}<span class="duration">{{ v.duration }}</span>{% endif %}
       </a>
@@ -163,6 +178,7 @@ wide: true
           {% for tag in v.pills %}
             <span class="brand-{{ tag.brand }}">{{ tag.label }}</span>
           {% endfor %}
+          {% if v.tags contains 'douyin' %}<span class="brand-douyin">抖音收藏</span>{% endif %}
         </div>
         <div class="mg-card-react" data-mg-react data-mode="compact"
              data-slug="{{ v.url }}" data-title="{{ v.title | escape }}" data-url="{{ v.url | relative_url }}"></div>
