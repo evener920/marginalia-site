@@ -413,6 +413,19 @@ li > ul, li > ol { margin-top: .35em; margin-bottom: .35em; }
 .post-meta .dot { color: var(--rule); }
 .tags-inline span { color: var(--muted); }
 
+/* 文章头图（cover 字段，Decap 上传图片默认写入此处） */
+.post-cover {
+  margin: 0 0 2rem;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+}
+.post-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .post-body > h2:first-child,
 .post-body > h3:first-child {
   margin-top: 0;

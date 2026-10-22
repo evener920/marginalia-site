@@ -26,6 +26,11 @@ layout: default
         {% endif %}
       </p>
     </header>
+    {%- if page.cover -%}
+    <figure class="post-cover">
+      <img src="{{ page.cover | relative_url }}" alt="{{ page.title }} 封面" loading="lazy">
+    </figure>
+    {%- endif -%}
     <div class="post-body">
       {{ content }}
     </div>
