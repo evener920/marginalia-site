@@ -2,6 +2,19 @@
 layout: default
 ---
 <div class="wrap">
+  {% comment %}归一化 douyin_id：数字 / /video/<id> / iesdouyin/share/video/<id> → 数字；短链若无数字则留空（降级外链）{% endcomment %}
+  {% assign douyin_raw = page.douyin_id | strip %}
+  {% assign douyin_vid = "" %}
+  {% if douyin_raw contains "/video/" %}
+    {% assign _p = douyin_raw | split: "/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+  {% elsif douyin_raw contains "/share/video/" %}
+    {% assign _p = douyin_raw | split: "/share/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+  {% elsif douyin_raw contains "douyin" %}
+    {% comment %}短链：依赖构建期插件解析；解析失败则降级为下方外链{% endcomment %}
+  {% else %}
+    {% assign douyin_vid = douyin_raw %}
+  {% endif %}
+
   <article class="page video-page">
     <header class="page-header video-header">
       {% if page.vol %}<p class="kicker video-kicker">🎬 {{ page.vol }}</p>{% endif %}
@@ -18,7 +31,7 @@ layout: default
       </p>
     </header>
 
-    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif page.douyin_id %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
+    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif douyin_vid %} video-player--douyin{% elsif page.video_url or page.video %} video-player--file{% endif %}">
       {% if page.stream_id %}
         {# Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图 #}
         <stream src="{{ page.stream_id }}" controls></stream>
@@ -31,10 +44,10 @@ layout: default
           referrerpolicy="no-referrer"
           loading="lazy"
         ></iframe>
-      {% elsif page.douyin_id %}
+      {% elsif douyin_vid %}
         {# 抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App） #}
         <iframe
-          src="//open.douyin.com/player/video?vid={{ page.douyin_id }}&autoplay=0"
+          src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0"
           scrolling="no"
           frameborder="0"
           allowfullscreen="true"
@@ -73,10 +86,15 @@ layout: default
         视频托管于 B 站 ·
         <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a>
       </p>
+    {% elsif douyin_vid %}
+      <p class="video-bili-link">
+        视频托管于 抖音 ·
+        <a href="https://www.douyin.com/video/{{ douyin_vid }}" target="_blank" rel="noopener">在抖音打开</a>
+      </p>
     {% elsif page.douyin_id %}
       <p class="video-bili-link">
         视频托管于 抖音 ·
-        <a href="https://www.douyin.com/video/{{ page.douyin_id }}" target="_blank" rel="noopener">在抖音打开</a>
+        <a href="{{ page.douyin_id }}" target="_blank" rel="noopener">在抖音打开（外链）</a>
       </p>
     {% elsif page.video_url %}
       <p class="video-bili-link">

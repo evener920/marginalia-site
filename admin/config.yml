@@ -55,7 +55,7 @@ collections:
       - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
       - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "三选一：填 BV 号嵌 B 站播放器，如 BV1xx411c7mD" }
       - { name: video_url, label: "R2 视频 mp4 直链", widget: string, required: false, hint: "三选一：最稳方式，填 R2 里 mp4 的公开链接" }
-      - { name: douyin_id, label: "抖音视频 ID", widget: string, required: false, hint: "三选一：抖音链接 video/ 后面那串数字；稳定性看运气" }
+      - { name: douyin_id, label: "抖音视频", widget: string, required: false, hint: "三选一：直接粘贴抖音分享短链（v.douyin.com/...）会自动解析成数字 ID；也可填链接里 video/ 后的那串数字。内嵌播放稳定性看运气（常需登录 / 跳 App），失败会自动变成「在抖音打开」外链" }
       - { name: body, label: "正文（可留空）", widget: markdown, required: false }
 
   # ============ 文档：标题 + PDF 直链 ============
