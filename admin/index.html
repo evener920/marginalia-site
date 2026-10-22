@@ -12,9 +12,10 @@
     <script src="https://unpkg.com/decap-cms@^3.3.3/dist/decap-cms.js"></script>
     <script>
     /* ============================================================
-       自定义编辑组件「图片链接」：解决 Decap 图片组件只能上传、不能贴外链的问题。
-       点 + → 图片链接 → 填直链即可插入 ![说明](URL)，外链 / 站内 / R2 都可以。
-       pattern 与标准 Markdown 图片语法一致，已有正文里的图片可正常回显编辑。
+       自定义编辑组件「图片链接」：
+       - 注册组件用于已有 ![alt](url) 的回显/点击编辑（round-trip）
+       - 菜单点击的弹框由下方自建 dialog 接管（Decap 原生点击组件
+         只会插块不弹框，体验不对）
        ============================================================ */
     window.addEventListener('load', function () {
       try {
@@ -41,102 +42,128 @@
     </script>
     <script>
     /* ============================================================
-       把「代码块 / 图片」提升为工具栏独立按钮。
-       Decap（含最新版）官方都不支持工具栏自定义，这里用 DOM 注入实现。
-       - 在编辑器工具栏挂载时即钉上按钮（无需先点 +）
-       - 点击时临时隐藏 + 的下拉菜单再自动选中，避免位移/闪烁
+       1) 精简 + 菜单：隐藏用不到的「Code Block」项（Image/上传 保留）
+       2) 「图片链接」点击弹框：自建 modal（说明 + 直链），确认后把
+          ![alt](url) 插入当前 CodeMirror 光标处。
+          不再钉工具栏按钮（与 + 菜单重复且 DOM 注入不稳定）。
        任何一步失败都静默跳过，不影响后台正常使用。
        ============================================================ */
     (function () {
-      if (window.__mgPin) return;
-      window.__mgPin = true;
+      if (window.__mgImgDlg) return;
+      window.__mgImgDlg = true;
 
-      var CODE_LABELS = ["Code Block", "代码块"];
-      var IMG_LABELS  = ["Image", "图片"];
-      var URL_LABELS  = ["图片链接"];
-      var SVG_CODE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
-      var SVG_IMG  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
-      var SVG_URL  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
-
-      function textOf(el) { return (el.textContent || "").trim(); }
-      function isVisible(el) { return !!(el && el.offsetParent); }
-      function findMenuItem(labels) {
-        var els = document.querySelectorAll('button, [role="menuitem"], li, a');
-        for (var i = 0; i < els.length; i++) {
-          if (labels.indexOf(textOf(els[i])) !== -1 && isVisible(els[i])) return els[i];
-        }
-        return null;
+      /* ---------- 通用 ---------- */
+      function inModal(el) {
+        return !!(el && el.closest && el.closest('[role="dialog"], [class*="modal" i], [class*="Modal"]'));
       }
+      function textOf(el) { return (el.textContent || '').trim(); }
 
-      /* 找编辑器工具栏：按钮最集中的那个容器；锚点 = 最后一个按钮（即 + 插入按钮） */
-      function findToolbar() {
-        var btns = document.querySelectorAll("button");
-        var count = {};
-        for (var i = 0; i < btns.length; i++) {
-          var p = btns[i].parentElement;
-          if (p) count[p] = (count[p] || 0) + 1;
-        }
-        var best = null, bestN = 6;
-        for (var k in count) { if (count[k] > bestN) { bestN = count[k]; best = k; } }
-        return best;
+      /* ---------- 1) 隐藏 + 菜单里的 Code Block ---------- */
+      var hideScheduled = false;
+      function hideCodeBlockItems() {
+        hideScheduled = false;
+        try {
+          var els = document.querySelectorAll('button, [role="menuitem"], li, a');
+          for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (el.dataset && el.dataset.mgHide === '1') continue;
+            var t = textOf(el);
+            if ((t === 'Code Block' || t === '代码块') && !inModal(el)) {
+              el.style.display = 'none';
+              if (el.dataset) el.dataset.mgHide = '1';
+            }
+          }
+        } catch (e) { /* 静默 */ }
       }
-
-      var hiding = false; // 仅在程序化展开 + 菜单时隐藏它
-
-      /* 菜单一出现就隐藏（仅当 hiding 为真），消除下拉位移/闪烁 */
       new MutationObserver(function () {
-        if (!hiding) return;
-        var m = findMenuItem(CODE_LABELS) || findMenuItem(IMG_LABELS) || findMenuItem(URL_LABELS);
-        if (m) {
-          var box = m.closest("ul") || m.parentElement;
-          if (box) box.style.visibility = "hidden";
-        }
+        if (hideScheduled) return;
+        hideScheduled = true;
+        requestAnimationFrame(hideCodeBlockItems);
       }).observe(document.body, { childList: true, subtree: true });
 
-      function activate(labels, anchor) {
-        var item = findMenuItem(labels);
-        if (item) { item.click(); return; }
-        if (!anchor) return;
-        hiding = true;
-        anchor.click();                       // 展开 + 菜单（已被观察器隐藏）
-        setTimeout(function () {
-          var it = findMenuItem(labels);
-          if (it) it.click();                // 自动选中，菜单随即关闭
-          hiding = false;
-        }, 90);
+      /* ---------- 2) 自建「图片链接」弹框 ---------- */
+      var lastCM = null; // 最近获得焦点的 CodeMirror 实例
+      document.addEventListener('focusin', function (e) {
+        var el = e.target && e.target.closest ? e.target.closest('.CodeMirror') : null;
+        if (el && el.CodeMirror) lastCM = el.CodeMirror;
+      }, true);
+
+      function pickCM() {
+        var els = document.querySelectorAll('.CodeMirror');
+        var insts = [];
+        for (var i = 0; i < els.length; i++) { if (els[i].CodeMirror) insts.push(els[i].CodeMirror); }
+        if (!insts.length) return null;
+        for (var j = 0; j < insts.length; j++) { if (insts[j].hasFocus && insts[j].hasFocus()) return insts[j]; }
+        if (lastCM && insts.indexOf(lastCM) !== -1) return lastCM;
+        return insts[insts.length - 1];
       }
 
-      function pin() {
-        var toolbar = findToolbar();
-        if (!toolbar || toolbar.dataset.mgPin === "1") return;
-        var anchor = toolbar.querySelector("button:last-child") || toolbar.lastElementChild;
-        if (!anchor || anchor.tagName !== "BUTTON") return;
+      var dlg = null, dlgAlt = null, dlgUrl = null;
 
-        function makePin(svg, title, labels) {
-          var b = anchor.cloneNode(false);    // 复制样式类，不带原事件
-          b.type = "button";
-          b.title = title;
-          b.setAttribute("data-mg-pin", title);
-          b.innerHTML = svg;
-          b.addEventListener("mousedown", function (e) { e.preventDefault(); });
-          b.addEventListener("click", function (e) {
-            e.preventDefault(); e.stopPropagation();
-            activate(labels, anchor);
-          });
-          return b;
+      function buildDlg() {
+        dlg = document.createElement('div');
+        dlg.id = 'mg-img-dlg';
+        dlg.style.cssText = 'position:fixed;inset:0;z-index:999999;display:none;align-items:center;justify-content:center;background:rgba(15,18,25,.45);';
+        dlg.innerHTML =
+          '<div role="dialog" style="background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.28);width:440px;max-width:92vw;padding:22px 24px;font-family:system-ui,-apple-system,sans-serif;">' +
+            '<h3 style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1f2430;">插入图片链接</h3>' +
+            '<p style="margin:0 0 12px;font-size:12px;color:#7a8194;">填图片直链（外链 images.unsplash.com/…、R2，或站内 /assets/img/…）</p>' +
+            '<label style="display:block;font-size:12px;color:#5b6270;margin:10px 0 4px;">图片说明（alt，可留空）</label>' +
+            '<input id="mg-img-alt" type="text" placeholder="例如：白洋淀的芦苇" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border:1px solid #d6dae2;border-radius:6px;outline:none;">' +
+            '<label style="display:block;font-size:12px;color:#5b6270;margin:12px 0 4px;">图片直链（必填）</label>' +
+            '<input id="mg-img-url" type="text" placeholder="https://…" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border:1px solid #d6dae2;border-radius:6px;outline:none;">' +
+            '<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px;">' +
+              '<button id="mg-img-cancel" type="button" style="padding:7px 16px;font-size:13px;border:1px solid #cfd4dd;background:#fff;color:#444c5c;border-radius:6px;cursor:pointer;">取消</button>' +
+              '<button id="mg-img-ok" type="button" style="padding:7px 18px;font-size:13px;border:none;background:#3184d3;color:#fff;border-radius:6px;cursor:pointer;">插入</button>' +
+            '</div>' +
+          '</div>';
+        document.body.appendChild(dlg);
+        dlgAlt = dlg.querySelector('#mg-img-alt');
+        dlgUrl = dlg.querySelector('#mg-img-url');
+
+        dlg.addEventListener('mousedown', function (e) { if (e.target === dlg) closeDlg(); });
+        dlg.querySelector('#mg-img-cancel').addEventListener('click', closeDlg);
+        dlg.querySelector('#mg-img-ok').addEventListener('click', insertMd);
+        dlg.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') closeDlg();
+          if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); insertMd(); }
+        });
+      }
+
+      function openDlg() {
+        if (!dlg) buildDlg();
+        dlgAlt.value = '';
+        dlgUrl.value = '';
+        dlg.style.display = 'flex';
+        setTimeout(function () { dlgUrl.focus(); }, 0);
+      }
+      function closeDlg() { if (dlg) dlg.style.display = 'none'; }
+
+      function insertMd() {
+        var url = (dlgUrl.value || '').trim().replace(/\s+/g, '');
+        var alt = (dlgAlt.value || '').trim().replace(/[\[\]]/g, '');
+        if (!url) { dlgUrl.style.borderColor = '#d9534f'; dlgUrl.focus(); return; }
+        var cm = pickCM();
+        if (cm) {
+          cm.replaceSelection('![' + alt + '](' + url + ')');
+          try { cm.focus(); } catch (e) {}
+        } else {
+          window.alert('未找到正文编辑器，请把光标点进正文后再试。');
         }
-
-        var pinCode = makePin(SVG_CODE, "代码块", CODE_LABELS);
-        var pinImg  = makePin(SVG_IMG,  "上传图片",   IMG_LABELS);
-        var pinUrl  = makePin(SVG_URL,  "图片链接（填直链）", URL_LABELS);
-        toolbar.insertBefore(pinImg, anchor);
-        toolbar.insertBefore(pinUrl, pinImg);
-        toolbar.insertBefore(pinCode, pinUrl);
-        toolbar.dataset.mgPin = "1";
+        closeDlg();
       }
 
-      /* 编辑器工具栏挂载/重渲染时都会触发，自动补钉按钮 */
-      new MutationObserver(pin).observe(document.body, { childList: true, subtree: true });
+      /* ---------- 3) 拦截 + 菜单里「图片链接」的点击，弹自建框 ---------- */
+      document.addEventListener('click', function (e) {
+        try {
+          var t = e.target && e.target.closest ? e.target.closest('button, [role="menuitem"], li, a') : null;
+          if (!t || inModal(t)) return;
+          if (textOf(t) !== '图片链接') return;
+          e.preventDefault();
+          e.stopPropagation();
+          openDlg();
+        } catch (err) { /* 静默，退回 Decap 原生行为 */ }
+      }, true);
     })();
     </script>
   </body>
