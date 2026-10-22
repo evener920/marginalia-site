@@ -89,5 +89,6 @@ collections:
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: author, label: "原作者（可留空）", widget: string, required: false }
       - { name: description, label: "一句话笺注（可留空）", widget: string, required: false }
+      - { name: audio_url, label: "音频直链（mp3/ogg）", widget: string, required: false, hint: "填音频的公开直链（如 R2 桶里的 mp3/ogg），页面出现播放器，文件不进 git" }
       - { name: cover, label: "书影 / 封面图", widget: image, required: false }
       - { name: body, label: "正文（笺注内容）", widget: markdown }

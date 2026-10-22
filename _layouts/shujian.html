@@ -13,6 +13,14 @@ layout: default
       </p>
     </header>
 
+    {% if page.audio_url %}
+    <div class="shujian-audio">
+      <p class="shujian-audio-label">🎧 收听</p>
+      <audio class="shujian-player" controls preload="metadata" src="{{ page.audio_url }}"></audio>
+      <p class="shujian-audio-link">音频托管于 Cloudflare R2 · <a href="{{ page.audio_url }}" target="_blank" rel="noopener">下载 / 打开原音频</a></p>
+    </div>
+    {% endif %}
+
     {% if page.cover %}
     <div class="shujian-cover">
       <img src="{{ page.cover | relative_url }}" alt="" loading="lazy">
@@ -64,6 +72,35 @@ layout: default
     box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08);
   }
   .shujian-cover img { width: 100%; display: block; }
+  .shujian-audio {
+    margin: 0 0 2rem;
+    padding: 1.2rem 1.4rem;
+    background: var(--bg-tint);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+  .shujian-audio-label {
+    margin: 0 0 0.6rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: var(--sans);
+  }
+  .shujian-player { width: 100%; display: block; }
+  .shujian-audio-link {
+    margin: 0.7rem 0 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: var(--sans);
+    text-align: right;
+  }
+  .shujian-audio-link a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(139, 46, 42, 0.35);
+  }
+  .shujian-audio-link a:hover { border-bottom-style: solid; }
   .shujian-body { font-size: 1.02rem; line-height: 1.75; }
   .shujian-body h2 {
     font-family: var(--serif);

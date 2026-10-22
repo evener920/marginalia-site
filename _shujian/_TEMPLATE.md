@@ -4,6 +4,7 @@ title: 在这里填书名或篇名
 date: 2026-10-22 10:00:00 +08:00
 author: 原作者（可空）
 description: 一句话笺注（可空）
+audio_url: https://你的R2地址/音频.mp3
 cover: /assets/img/uploads/书影.jpg
 ---
 
