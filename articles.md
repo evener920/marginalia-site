@@ -119,27 +119,27 @@ wide: true
   /* —— 网格视图（16:9 题图 + 等高卡片，居中换行）—— */
   .articles-list.is-grid {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 1rem; margin-top: 1.4rem;
+    gap: 0.9rem; margin-top: 1.4rem;
   }
   .articles-list.is-grid > li {
     display: flex; flex-direction: column; padding: 0;
-    flex: 0 0 auto; width: calc(25% - 0.75rem);
+    flex: 0 0 auto; width: calc(20% - 0.72rem);
     border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
     background: var(--bg-tint); box-shadow: 0 3px 10px rgba(31, 29, 27, 0.05);
   }
-  @media (max-width: 1200px) { .articles-list.is-grid > li { width: calc(25% - 0.75rem); } }
-  @media (max-width: 900px)  { .articles-list.is-grid > li { width: calc(33.333% - 0.667rem); } }
-  @media (max-width: 640px)  { .articles-list.is-grid > li { width: calc(50% - 0.5rem); } }
+  @media (max-width: 1200px) { .articles-list.is-grid > li { width: calc(25% - 0.675rem); } }
+  @media (max-width: 900px)  { .articles-list.is-grid > li { width: calc(33.333% - 0.6rem); } }
+  @media (max-width: 640px)  { .articles-list.is-grid > li { width: calc(50% - 0.45rem); } }
   @media (max-width: 420px)  { .articles-list.is-grid > li { width: 100%; } }
-  .articles-list.is-grid .thumb { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; font-size: 1.8rem; }
-  .articles-list.is-grid .meta { padding: 0.6rem 0.8rem 0.8rem; flex: 1; }
-  .articles-list.is-grid .date { margin-bottom: 0.3rem; font-size: .68rem; }
-  .articles-list.is-grid .title { font-size: 0.95rem; line-height: 1.3; margin-bottom: 0.25rem; min-height: 2.4em; }
+  .articles-list.is-grid .thumb { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; font-size: 1.6rem; }
+  .articles-list.is-grid .meta { padding: 0.55rem 0.7rem 0.7rem; flex: 1; }
+  .articles-list.is-grid .date { margin-bottom: 0.25rem; font-size: .66rem; }
+  .articles-list.is-grid .title { font-size: 0.88rem; line-height: 1.3; margin-bottom: 0.2rem; min-height: 2.3em; }
   .articles-list.is-grid .desc {
-    font-size: .78rem; line-height: 1.5; min-height: 3em;
+    font-size: .75rem; line-height: 1.5; min-height: 2.7em;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .articles-list.is-grid .pills span { font-size: .66rem; padding: 2px 7px; }
+  .articles-list.is-grid .pills span { font-size: .64rem; padding: 2px 6px; }
 </style>
 
 你写下的每一篇文章与随笔，按时间倒序排列。
@@ -167,7 +167,7 @@ wide: true
     <div class="meta">
       <div class="date">{{ p.date | date: '%Y-%m-%d' }}{% if p.author %} · {{ p.author }}{% endif %}</div>
       <h3 class="title"><a href="{{ p.url | relative_url }}">{{ p.title }}</a></h3>
-      <p class="desc">{{ p.description | default: p.excerpt }}</p>
+      <p class="desc">{{ p.description | default: p.excerpt | strip_html | truncate: 90 }}</p>
       <div class="pills"><span>{{ pcat }}</span></div>
     </div>
   </li>
