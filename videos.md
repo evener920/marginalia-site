@@ -148,6 +148,22 @@ wide: true
     }
     .videos-list .title { font-size: 1.25rem; }
   }
+
+  .videos-pager {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+    margin: 2.4rem 0 0.5rem; font-family: var(--sans);
+  }
+  .videos-pager button {
+    font: inherit; cursor: pointer; border: 1px solid var(--rule);
+    background: var(--bg-tint); color: var(--ink);
+    padding: 7px 13px; border-radius: 2px; transition: border-color .2s, color .2s, background .2s;
+  }
+  .videos-pager button:hover:not(.disabled) { border-color: var(--accent-soft); color: var(--accent); }
+  .videos-pager .active { background: var(--accent); color: #fbf8f1; border-color: var(--accent); }
+  .videos-pager .disabled { opacity: .4; cursor: default; }
+  .v-pager-gap { color: var(--muted); padding: 0 4px; }
+  .v-pager-info { margin-left: auto; font-size: .8rem; color: var(--muted); letter-spacing: .05em; }
+  @media (max-width: 720px) { .v-pager-info { margin-left: 0; width: 100%; text-align: center; } }
 </style>
 
 每周一条，把全球 AI 大事讲给一线工程师听。脚本生成 — MiniMax TTS 主播口播 + Hailuo AI B-roll + Remotion 动效 + 字幕条 + 背景音乐。不复述新闻，只挑会改变你写代码方式的更新。
@@ -158,7 +174,7 @@ wide: true
 {% if videos.size == 0 %}
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
 {% else %}
-<section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题">
+<section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题" data-page-size="18">
   <div class="mg-filter-bar" data-filter-chips></div>
   <ul class="videos-list">
     {% for v in videos %}
@@ -186,6 +202,7 @@ wide: true
     </li>
     {% endfor %}
   </ul>
+  <div data-filter-pager></div>
 </section>
 {% endif %}
 

@@ -2044,6 +2044,7 @@ body.has-hero .site-header:not(.scrolled) .nav-music.playing { color: #8b2e2a; b
 }
 .mg-filter-empty { margin: 2rem 0; color: var(--muted); font-style: italic; font-family: var(--sans); }
 [data-filter-hidden] { display: none !important; }
+[data-page-hidden] { display: none !important; }
 .note-cat {
   font-family: var(--sans); font-size: .68rem; letter-spacing: .08em;
   color: var(--accent); margin: .3rem 0 .1rem; font-weight: 600;
