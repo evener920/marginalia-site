@@ -8,41 +8,31 @@
 
 ## 第一步：导出你的抖音收藏链接
 
-1. 电脑浏览器打开并登录抖音网页版，进入**你的收藏页**
-   （个人主页 → 收藏，或类似 `https://www.douyin.com/user/...?list_name=favorite`）。
-2. 把下面这整段保存为一个**书签**（书签名称随便，比如「导出抖音收藏」），
-   地址栏粘这段 `javascript:...`：
+### 1. 进入收藏页
+电脑浏览器打开并登录 **抖音网页版（douyin.com）**，通过 UI 进入**你的收藏**：
+右上角头像 → 个人主页 → 「收藏」标签，看到一排视频网格即可。
+（收藏特别多时页面是「无限滚动」，下面书签会自动滚到底加载。）
 
-```js
-javascript:(async () => {
-  const ids = new Set();
-  const grab = () => {
-    document.querySelectorAll('a[href*="/video/"]').forEach(a => {
-      const m = a.href.match(/video\/(\d+)/);
-      if (m) ids.add('https://www.douyin.com/video/' + m[1]);
-    });
-  };
-  for (let i = 0; i < 300; i++) {
-    grab();
-    window.scrollTo(0, document.body.scrollHeight);
-    await new Promise(r => setTimeout(r, 800));
-    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 200 && i > 5) break;
-  }
-  grab();
-  const blob = new Blob([[...ids].join('\n'), {type: 'text/plain'}]);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'douyin-favorites.txt';
-  a.click();
-  alert('已导出 ' + ids.size + ' 个视频链接');
-})();
+### 2. 把下面这段存成书签
+书签名称随意（如「导出抖音收藏」），**网址/URL 一栏粘这段**（它是 `javascript:` 开头的一整行）：
+
+```
+javascript:(async()=>{const ids=new Set();const grab=()=>{document.querySelectorAll('a[href*="/video/"]').forEach(a=>{const m=a.href.match(/video\/(\d+)/);if(m)ids.add('https://www.douyin.com/video/'+m[1]);});};for(let i=0;i<300;i++){grab();const sc=document.scrollingElement||document.body;sc.scrollTop=sc.scrollHeight;await new Promise(r=>setTimeout(r,800));if(sc.scrollTop+window.innerHeight>=sc.scrollHeight-200&&i>5)break;}grab();const blob=new Blob([...ids].join('\n'),{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='douyin-favorites.txt';a.click();alert('已导出 '+ids.size+' 个视频链接');})();
 ```
 
-3. 在收藏页**点一下这个书签**，它会自动滚动加载、收集所有视频链接，
-   并下载 `douyin-favorites.txt`。
-   - 若导出数量为 0，说明当前页面不是收藏网格页，换个页面再试；
-     或把页面里视频链接的真实格式发我，我调一下选择器。
-   - 抖音是虚拟滚动，跑完会自动停；收藏特别多时分两三次跑也行（去重靠下面的脚本）。
+> **添加书签的常见坑（必看）**
+> - **`javascript:` 会被浏览器吃掉**：Chrome 在书签 URL 框粘贴 `javascript:...` 时，常把前缀 `javascript:` 自动删掉，导致点书签无效。
+>   解决：先在 URL 框手打 `javascript:`（含冒号），再把后面整段代码粘到它**后面**；或者先粘进「名称」框再剪切到 URL 框。
+> - **要放在书签栏上**：部分浏览器只允许书签栏上的书签以 bookmarklet 方式运行，收藏菜单里的可能被拦截。
+> - 存好后，在收藏页点一下该书签即可运行。
+
+### 3. 点书签，导出
+在收藏页**点一下这个书签** → 它会自动向下滚动、收集所有 `www.douyin.com/video/<id>` 链接，
+最后弹窗「已导出 N 个视频链接」并下载 `douyin-favorites.txt`。
+
+- 若弹窗数量是 **0**：说明当前页不是收藏网格（或视频卡片链接格式不同）。把页面里任意一个视频链接的真实样子发我，我调选择器。
+- 若数量**偏少**：页面可能没滚到底。手动向下滚一下加载更多，再点一次书签（脚本去重，重复不影响）。
+- 收藏极多时分两三次跑即可，最终合并到一个 txt。
 
 ## 第二步：批量生成视频条目
 
