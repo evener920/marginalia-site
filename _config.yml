@@ -118,9 +118,9 @@ streams:
     desc: 你发布的视频专栏。
   - title: 文档
     link: /docs/
-    image: /assets/img/site/emblem-notes.jpg
+    image: /assets/img/site/emblem-docs.jpg
     desc: 你上传的书目、资料与 PDF 文档。
   - title: 书笺
     link: /shujian/
-    image: /assets/img/site/emblem-notes.jpg
+    image: /assets/img/site/emblem-shujian.jpg
     desc: 读书笺注 · 你写下的书边批语。
