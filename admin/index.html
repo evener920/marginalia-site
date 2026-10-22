@@ -41,14 +41,17 @@
     </script>
     <script>
     /* ============================================================
-       工具栏改造 + 自建插图弹框 v3（Decap 3.17.x，Slate 编辑器）
-       1) 删除 + 下拉按钮（title="Add Component"），原位放「图片链接」
-          按钮，点击直接弹自建弹框；MutationObserver 持续补挂
-       2) 插入检测四级兜底 + 三种写入通道：
-          定位：弹框打开时记录按钮所在字段容器 → 最后聚焦的编辑器 → 全文档
-          写入：Slate(contenteditable) execCommand → CodeMirror → textarea
-          校验：Slate 写入后验证 DOM 里真的出现了 URL，失败自动换通道
-          仍失败：alert 附诊断计数，便于一次截图定位
+       工具栏改造 + 自建插图弹框 v4（Decap 3.17.x，Slate 编辑器）
+       v4 关键变化：
+       1) 按钮点击改「全局事件委托」——工具栏每次按键都会整体重挂载，
+          实例上的监听会随节点销毁而丢失（v3 点了没反应的根因）；
+          委托到 document 上后永不丢失
+       2) Slate 插入改「paste 事件通道」为主——execCommand 直接改 DOM
+          但绕过 Slate 内部状态，下一次渲染会把文本悄悄吞掉（v3 插入
+          无效的根因）；paste 走 Slate 状态机，插入即生效
+       3) 异步校验（150ms 后确认 DOM 真的出现 URL），失败逐级降级：
+          paste → execCommand → CodeMirror → textarea
+       4) 插入成功弹 toast 提示；全失败弹诊断计数
        ============================================================ */
     (function () {
       if (window.__mgImgDlg) return;
@@ -147,30 +150,63 @@
       }
       function closeDlg() { if (dlg) dlg.style.display = 'none'; }
 
-      /* ---------- 写入通道 ---------- */
-      function slateInsert(ed, md, url) {
+      /* ---------- toast 提示（插入成功反馈） ---------- */
+      var toastEl = null, toastTimer = null;
+      function toast(msg) {
+        if (!toastEl) {
+          toastEl = document.createElement('div');
+          toastEl.style.cssText = 'position:fixed;left:50%;bottom:48px;transform:translateX(-50%);z-index:1000000;background:#1f2430;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;pointer-events:none;';
+          document.body.appendChild(toastEl);
+        }
+        toastEl.textContent = msg;
+        toastEl.style.opacity = '1';
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 2200);
+      }
+
+      /* ---------- Slate 光标恢复 ---------- */
+      function caretEnd(ed) {
+        var sel = window.getSelection();
+        var inside = sel.rangeCount > 0 && ed.contains(sel.anchorNode);
+        if (!inside) {
+          var r = document.createRange();
+          r.selectNodeContents(ed);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+      }
+      function hasUrl(ed, url) { return (ed.textContent || '').indexOf(url) !== -1; }
+
+      /* ---------- 写入通道 1：paste 事件（走 Slate 状态机，最可靠） ---------- */
+      function slatePaste(ed, md) {
         try {
           ed.focus();
-          var sel = window.getSelection();
-          var inside = sel.rangeCount > 0 && ed.contains(sel.anchorNode);
-          if (!inside) {
-            var r = document.createRange();
-            r.selectNodeContents(ed);
-            r.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(r);
-          }
-          document.execCommand('insertText', false, md);
-          /* 校验：DOM 里真的出现 URL 才算成功 */
-          return (ed.textContent || '').indexOf(url) !== -1;
+          caretEnd(ed);
+          var dt = new DataTransfer();
+          dt.setData('text/plain', md);
+          var ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+          ed.dispatchEvent(ev);
+          return true;                                            // 结果由异步校验判定
         } catch (e) { return false; }
       }
+      /* ---------- 写入通道 2：execCommand（同步校验） ---------- */
+      function slateExec(ed, md, url) {
+        try {
+          ed.focus();
+          caretEnd(ed);
+          document.execCommand('insertText', false, md);
+          return hasUrl(ed, url);
+        } catch (e) { return false; }
+      }
+      /* ---------- 写入通道 3：CodeMirror（老版本兜底） ---------- */
       function cmInsert(md) {
         if (lastCM && lastCM.replaceSelection && document.contains(lastCM.getTextArea ? lastCM.getTextArea() : null)) {
           try { lastCM.replaceSelection(md); lastCM.focus(); return true; } catch (e) { return false; }
         }
         return false;
       }
+      /* ---------- 写入通道 4：textarea（Markdown 模式） ---------- */
       function taInsert(ta, md) {
         try {
           var s = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
@@ -182,7 +218,7 @@
         } catch (e) { return false; }
       }
 
-      /* ---------- 插入：定位（ctxRoot→last→文档）× 写入（Slate→CM→textarea） ---------- */
+      /* ---------- 插入：定位（ctxRoot→last→文档）× 写入（paste→exec→CM→ta） ---------- */
       function insertMd() {
         var url = (dlgUrl.value || '').trim().replace(/\s+/g, '');
         var alt = (dlgAlt.value || '').trim().replace(/[\[\]]/g, '');
@@ -190,28 +226,39 @@
         var md = '![' + alt + '](' + url + ')';
 
         /* 候选编辑器：字段容器内 → 最后聚焦的 → 全文档 */
-        var candidates = [], i;
-        candidates = candidates.concat(pickEditors(ctxRoot));
-        if (lastEditor && document.contains(lastEditor)) candidates.push(lastEditor);
-        candidates = candidates.concat(pickEditors(document));
-        for (i = 0; i < candidates.length; i++) {
-          if (slateInsert(candidates[i], md, url)) { closeDlg(); return; }
-        }
-        /* CodeMirror（老版本兜底） */
-        if (cmInsert(md)) { closeDlg(); return; }
-        /* textarea：字段容器内 → 最后聚焦的 → 全文档 */
-        var tas = pickTextareas(ctxRoot);
-        if (lastTextarea && document.contains(lastTextarea)) tas.push(lastTextarea);
-        tas = tas.concat(pickTextareas(document));
-        for (i = 0; i < tas.length; i++) { if (taInsert(tas[i], md)) { closeDlg(); return; } }
+        var candidates = pickEditors(ctxRoot);
+        if (lastEditor && document.contains(lastEditor) && candidates.indexOf(lastEditor) === -1) candidates.push(lastEditor);
+        var docEditors = pickEditors(document);
+        for (var k = 0; k < docEditors.length; k++) if (candidates.indexOf(docEditors[k]) === -1) candidates.push(docEditors[k]);
 
-        /* 全部失败：附诊断计数，截图即可定位 */
-        var nSlate = qAll(document, '[data-slate-editor="true"]').length;
-        var nCE = qAll(document, '[contenteditable="true"]').length;
-        var nTA = pickTextareas(document).length;
-        var nCM = qAll(document, '.CodeMirror').length;
-        window.alert('未找到可插入的正文编辑器\n[诊断 slate=' + nSlate + ' contenteditable=' + nCE +
-          ' textarea=' + nTA + ' codemirror=' + nCM + ']\n请截图发我，并把光标点进正文后再试一次。');
+        var ci = 0;
+        function tryEditor() {
+          if (ci >= candidates.length) { tryCM(); return; }
+          var ed = candidates[ci++];
+          if (slatePaste(ed, md)) {
+            setTimeout(function () {                              // 异步校验 paste 结果
+              if (hasUrl(ed, url)) { closeDlg(); toast('已插入图片 ✓'); return; }
+              if (slateExec(ed, md, url)) { closeDlg(); toast('已插入图片 ✓'); return; }
+              tryEditor();
+            }, 150);
+          } else { tryEditor(); }
+        }
+        function tryCM() {
+          if (cmInsert(md)) { closeDlg(); toast('已插入图片 ✓'); return; }
+          var tas = pickTextareas(ctxRoot);
+          if (lastTextarea && document.contains(lastTextarea) && tas.indexOf(lastTextarea) === -1) tas.push(lastTextarea);
+          tas = tas.concat(pickTextareas(document));
+          for (var i = 0; i < tas.length; i++) { if (taInsert(tas[i], md)) { closeDlg(); toast('已插入图片 ✓'); return; } }
+
+          /* 全部失败：附诊断计数，截图即可定位 */
+          var nSlate = qAll(document, '[data-slate-editor="true"]').length;
+          var nCE = qAll(document, '[contenteditable="true"]').length;
+          var nTA = pickTextareas(document).length;
+          var nCM = qAll(document, '.CodeMirror').length;
+          window.alert('未找到可插入的正文编辑器\n[诊断 slate=' + nSlate + ' contenteditable=' + nCE +
+            ' textarea=' + nTA + ' codemirror=' + nCM + ']\n请截图发我，并把光标点进正文后再试一次。');
+        }
+        tryEditor();
       }
 
       /* ---------- 工具栏：删 + 下拉，原位放「图片链接」按钮 ---------- */
@@ -231,14 +278,8 @@
         mine.removeAttribute('disabled');
         mine.removeAttribute('id');
         mine.setAttribute('title', '图片链接（弹框填直链）');
-        mine.setAttribute('data-mg-img', '1');
+        mine.setAttribute('data-mg-img', '1');       // 点击由全局委托接管，不绑实例
         mine.innerHTML = SVG_IMG;
-        mine.addEventListener('mousedown', function (e) { e.preventDefault(); });
-        mine.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          openDlg(mine);                             // 把按钮传进去，锁定字段容器
-        });
         plus.parentNode.insertBefore(mine, plus);
         plus.style.display = 'none';                 // 删掉 + 下拉按钮
         plus.dataset.mgHandled = '1';
@@ -250,8 +291,22 @@
         }
       }
 
-      /* ---------- 菜单兜底：若 + 未被识别仍可从菜单点「图片链接」 ---------- */
+      /* ---------- 全局事件委托：按钮随重挂载生死，监听永不丢 ---------- */
+      document.addEventListener('mousedown', function (e) {
+        try {
+          if (e.target.closest && e.target.closest('[data-mg-img="1"]')) e.preventDefault();  // 防止抢走编辑器焦点
+        } catch (err) { /* 静默 */ }
+      }, true);
       document.addEventListener('click', function (e) {
+        try {
+          var btn = e.target && e.target.closest ? e.target.closest('[data-mg-img="1"]') : null;
+          if (!btn || inModal(btn)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openDlg(btn);
+          return;
+        } catch (err) { /* 静默 */ }
+        /* 菜单兜底：若按钮未挂上，仍可从 + 菜单点「图片链接」 */
         try {
           var t = e.target && e.target.closest ? e.target.closest('button, [role="menuitem"], li, a') : null;
           if (!t || inModal(t)) return;
@@ -259,7 +314,7 @@
           e.preventDefault();
           e.stopPropagation();
           openDlg(t);
-        } catch (err) { /* 静默 */ }
+        } catch (err2) { /* 静默 */ }
       }, true);
 
       /* ---------- 持续补挂（工具栏每次按键都会重挂载） ---------- */
