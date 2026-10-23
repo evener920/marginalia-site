@@ -572,45 +572,42 @@
     </script>
     <script>
     /* ============================================================
-       编辑器字段分区 v2（纯视觉整合：默认折叠次要分区，数据零改动）
-       v2 关键变化（修 v1「一张卡都没出现」）：
-       - Decap zh_Hans 给可选字段自动追加「（可选）」，且大小写/空格不稳
-         → 归一化（去「（可选）」、去空白、转小写）后按「锚定关键字」匹配
-       - 分区默认折叠：视频来源/音频/封面/分类标签/文档文件 打开即收起，
-         表单只剩 基本信息 + 正文，一眼清爽
-       - 手动展开/收起记入内存态，重画后保持
-       - observer 在 apply 期间断开，防止「自己插入节点→再次触发」死循环
-       - 字段块定位：先找「含 ≥2 个带 label 子块」的容器，再取其下子块，
-         避免把 label 自己或整个字段列表误当块
+       编辑器字段分区 v3（基于 Decap 内部结构的确定性定位，数据零改动）
+       v3 关键变化（修 v2「真实 DOM 下一张卡都没出现」）：
+       - 不再靠 label 文本猜字段：Decap 每个字段的 <label for=...> 的 for
+         是 uniqueId(`${字段名}-field-`)，形如 "bvid-field-3"，
+         直接用字段名（htmlFor 前缀）识别字段，不受语言包/（可选）后缀影响
+       - 字段块 = label.closest('div[aria-label]')（EditorControl 的
+         ControlContainer，源码级稳定锚点），不再用「≥2 个带标兄弟」启发式
+       - observer 只扫 label[for]，不再全文档 querySelectorAll('*')，不卡 UI
+       - 已在 Decap 3.17.1 官方同版本环境实测：分区卡出现、默认折叠、
+         点击展开均正常
        ============================================================ */
     (function () {
       if (window.__mgSections) return;
       window.__mgSections = true;
 
-      function norm(s) {
-        return (s || '').replace(/（可选）/g, '').replace(/\s+/g, '').toLowerCase();
-      }
-
-      /* 锚定规则（按顺序首个命中生效）。sec:null = 归入基本信息、不出卡 */
-      var RULES = [
-        { re: /^正文/,           sec: '正文 / 内容' },
-        { re: /^音频/,           sec: '音频',       note: '可留空' },
-        { re: /^b站/,            sec: '视频来源',   note: '三选一，可留空' },
-        { re: /^r2视频/,         sec: '视频来源',   note: '三选一，可留空' },
-        { re: /^抖音/,           sec: '视频来源',   note: '三选一，可留空' },
-        { re: /^r2pdf/,          sec: '文档文件',   note: '填 R2 直链' },
-        { re: /^封面|^书影/,     sec: '封面',       note: '可留空' },
-        { re: /^标签/,           sec: '分类标签',   note: '可留空' },
-        { re: /^标题|^书名|^歌名/, sec: '基本信息' },
-        { re: /^日期|^一句话|^作者|^原作者|^演唱者|^词曲/, sec: null }
+      /* 字段名 → [分区名, 提示]；不在表内的字段归入顶部「基本信息」，不出卡 */
+      var SEC = {
+        bvid:       ['视频来源', '三选一，可留空'],
+        video_url:  ['视频来源', '三选一，可留空'],
+        douyin_id:  ['视频来源', '三选一，可留空'],
+        douyin_type:['视频来源', '三选一，可留空'],
+        audio_url:  ['音频', '可留空'],
+        cover:      ['封面', '可留空'],
+        tags:       ['分类标签', '可留空'],
+        pdf_url:    ['文档文件', '填 R2 直链'],
+        body:       ['正文 / 内容', null]
+      };
+      /* 文本兜底（仅当 htmlFor 异常缺失时用，正常情况不会走到） */
+      var TEXT_RULES = [
+        { re: /^正文/, sec: '正文 / 内容' },
+        { re: /^音频/, sec: '音频' },
+        { re: /^(b站|r2视频|抖音)/, sec: '视频来源' },
+        { re: /^r2pdf/, sec: '文档文件' },
+        { re: /^(封面|书影)/, sec: '封面' },
+        { re: /^标签/, sec: '分类标签' }
       ];
-      function ruleOf(text) {
-        var t = norm(text);
-        if (!t) return null;
-        for (var i = 0; i < RULES.length; i++) if (RULES[i].re.test(t)) return RULES[i];
-        return null;
-      }
-
       var DEFAULT_COLLAPSED = { '视频来源': 1, '音频': 1, '封面': 1, '分类标签': 1, '文档文件': 1 };
       var userState = {};
 
@@ -621,7 +618,7 @@
         '.mgx-sec .mgx-note{font-weight:400;font-size:11px;color:#9a9384;}',
         '.mgx-sec::after{content:"\\25BE";margin-left:auto;color:#b9b2a2;font-size:12px;}',
         '.mgx-sec.mgx-collapsed-sec::after{content:"\\25B8";}',
-        '.mgx-field.mgx-collapsed{display:none!important;}'
+        '.mgx-cc.mgx-collapsed{display:none!important;}'
       ].join('\n');
       document.head.appendChild(style);
 
@@ -639,96 +636,86 @@
         return d;
       }
 
+      /* 找字段块：label → 含 aria-label 的最近 div 祖先（ControlContainer） */
+      function blockOf(label) {
+        var el = label;
+        while (el && el !== document.body) {
+          if (el.tagName === 'DIV' && el.getAttribute('aria-label')) return el;
+          el = el.parentElement;
+        }
+        return null;
+      }
+
+      /* 收集编辑器内所有顶层字段：[{ name, cc }]，按文档顺序、按块去重 */
+      function collectFields() {
+        var out = [], byCC = new Map();
+        var labels = document.querySelectorAll('label[for]');
+        for (var i = 0; i < labels.length; i++) {
+          var lb = labels[i];
+          var forId = lb.getAttribute('for') || '';
+          var m = /^([A-Za-z][A-Za-z0-9_]*)-field-\d+$/.exec(forId);
+          if (!m) continue;
+          var cc = blockOf(lb);
+          if (!cc || byCC.has(cc)) continue;
+          byCC.set(cc, 1);
+          out.push({ name: m[1], cc: cc, label: lb });
+        }
+        return out;
+      }
+
+      function secOf(f) {
+        if (SEC[f.name]) return SEC[f.name][0];
+        /* 兜底：按 label 文本 */
+        var t = (f.label.textContent || '').replace(/（可选）/g, '').replace(/\s+/g, '');
+        for (var i = 0; i < TEXT_RULES.length; i++) if (TEXT_RULES[i].re.test(t)) return TEXT_RULES[i].sec;
+        return null;
+      }
+
       var observer = null;
 
       function apply() {
-        if (observer) observer.disconnect();          // 防：自己插入节点再次触发
+        if (observer) observer.disconnect();
         try {
-          /* 重置上一轮注入（幂等，切条目/重挂载后重画） */
+          /* 重置上一轮注入（幂等） */
           var prev = document.querySelectorAll('.mgx-sec');
           for (var p = 0; p < prev.length; p++) prev[p].remove();
-          var flds = document.querySelectorAll('.mgx-field');
-          for (var f = 0; f < flds.length; f++) flds[f].classList.remove('mgx-field', 'mgx-collapsed');
+          var flds = document.querySelectorAll('.mgx-cc');
+          for (var f = 0; f < flds.length; f++) flds[f].classList.remove('mgx-cc', 'mgx-collapsed');
 
-          /* 第一遍：找所有命中规则的 label 叶子，打标 */
-          var labeled = [];
-          var all = document.querySelectorAll('*');
-          for (var i = 0; i < all.length; i++) {
-            var el = all[i];
-            if (el.children.length > 0) continue;     // 叶子
-            var r = ruleOf(el.textContent);
-            if (!r) continue;
-            el.setAttribute('data-mg-label', '1');
-            labeled.push(el);
-          }
-          if (!labeled.length) return;
+          var fields = collectFields();
+          if (fields.length < 2) return;
 
-          /* 第二遍：对每个 label 找「含 ≥2 个带标子块」的容器，取其下子块 */
-          function findBlock(leaf) {
-            var cur = leaf.parentElement;
-            while (cur && cur !== document.body) {
-              if (cur.children.length >= 2) {
-                var hit = 0, n = cur.firstElementChild;
-                while (n) {
-                  if (n.querySelector && n.querySelector('[data-mg-label]')) hit++;
-                  n = n.nextElementSibling;
-                }
-                if (hit >= 2) {                       // cur 是字段容器
-                  var c = cur.firstElementChild;
-                  while (c) {
-                    if (c.contains(leaf)) return c;
-                    c = c.nextElementSibling;
-                  }
-                  return null;
-                }
-              }
-              cur = cur.parentElement;
-            }
-            return null;
-          }
-
-          /* 按文档顺序收集「块 → 规则」，去重 */
-          var blocks = [], seen = {};
-          for (var j = 0; j < labeled.length; j++) {
-            var leaf = labeled[j], rule = ruleOf(leaf.textContent);
-            var b = findBlock(leaf);
-            if (!b || seen[b]) continue;
-            seen[b] = 1;
-            blocks.push({ block: b, sec: rule.sec, note: rule.note });
-          }
-
-          /* 第三遍：分区切换处插标题卡 */
           var lastSec = null;
-          var headers = [];                            // {header, sec, firstBlock}
-          for (var k = 0; k < blocks.length; k++) {
-            var it = blocks[k];
-            var sec = it.sec || '基本信息';
-            if (sec === lastSec) continue;
+          var headers = [];
+          for (var k = 0; k < fields.length; k++) {
+            var it = fields[k];
+            var sec = secOf(it);
+            it.cc.classList.add('mgx-cc');
+            if (!sec || sec === lastSec) { if (sec) lastSec = sec; continue; }
             lastSec = sec;
-            var header = buildSec(sec, it.note);
-            it.block.parentElement.insertBefore(header, it.block);
-            headers.push({ header: header, sec: sec, firstBlock: it.block });
+            var header = buildSec(sec, SEC[it.name] ? SEC[it.name][1] : null);
+            it.cc.parentElement.insertBefore(header, it.cc);
+            headers.push({ header: header, sec: sec, firstCC: it.cc });
           }
+          if (!headers.length) return;
 
-          /* 标块 + 应用折叠态 */
-          for (var m = 0; m < blocks.length; m++) blocks[m].block.classList.add('mgx-field');
-          function collapseFrom(header, firstBlock, collapsed) {
+          function collapseFrom(header, firstCC, collapsed) {
             header.classList.toggle('mgx-collapsed-sec', collapsed);
-            var s = firstBlock;
+            var s = firstCC;
             while (s) {
               if (s.classList && s.classList.contains('mgx-sec')) break;
-              if (s.classList && s.classList.contains('mgx-field')) s.classList.toggle('mgx-collapsed', collapsed);
+              if (s.classList && s.classList.contains('mgx-cc')) s.classList.toggle('mgx-collapsed', collapsed);
               s = s.nextElementSibling;
             }
           }
           for (var h = 0; h < headers.length; h++) {
             (function (hd) {
               var collapsed = (userState[hd.sec] !== undefined) ? userState[hd.sec] : !!DEFAULT_COLLAPSED[hd.sec];
-              collapseFrom(hd.header, hd.firstBlock, collapsed);
+              collapseFrom(hd.header, hd.firstCC, collapsed);
               hd.header.addEventListener('click', function () {
                 var now = !(userState[hd.sec] !== undefined ? userState[hd.sec] : !!DEFAULT_COLLAPSED[hd.sec]);
                 userState[hd.sec] = now;
-                collapseFrom(hd.header, hd.firstBlock, now);
+                collapseFrom(hd.header, hd.firstCC, now);
               });
             })(headers[h]);
           }
@@ -737,9 +724,11 @@
       }
 
       apply();
+      var scheduled = false;
       observer = new MutationObserver(function () {
-        /* rAF 合帧；apply 内部会先 disconnect 防自触发 */
-        setTimeout(function () { apply(); }, 120);
+        if (scheduled) return;
+        scheduled = true;
+        setTimeout(function () { scheduled = false; apply(); }, 200);
       });
       observer.observe(document.body, { childList: true, subtree: true });
     })();
