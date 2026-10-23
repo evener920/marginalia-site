@@ -41,17 +41,15 @@
     </script>
     <script>
     /* ============================================================
-       工具栏改造 + 自建插图弹框 v4（Decap 3.17.x，Slate 编辑器）
-       v4 关键变化：
-       1) 按钮点击改「全局事件委托」——工具栏每次按键都会整体重挂载，
-          实例上的监听会随节点销毁而丢失（v3 点了没反应的根因）；
-          委托到 document 上后永不丢失
-       2) Slate 插入改「paste 事件通道」为主——execCommand 直接改 DOM
-          但绕过 Slate 内部状态，下一次渲染会把文本悄悄吞掉（v3 插入
-          无效的根因）；paste 走 Slate 状态机，插入即生效
-       3) 异步校验（150ms 后确认 DOM 真的出现 URL），失败逐级降级：
-          paste → execCommand → CodeMirror → textarea
-       4) 插入成功弹 toast 提示；全失败弹诊断计数
+       工具栏改造 + 自建插图弹框 v5（Decap 3.17.x，Slate 编辑器）
+       v5 关键变化（修"插了图但不显示"）：
+       0) 插入前先探测图片能否加载（new Image + 8s 超时）：
+          贴错网页链接（unsplash.com/photos/…）/死链/防盗链拒绝时
+          当场红字拦下并取消插入，不再产出破图；失焦即探测
+       1) 点击全局事件委托（v4 继承）：工具栏重挂载不丢监听
+       2) Slate 插入 paste 事件通道走状态机（v4 继承）
+       3) 新增 beforeinput insertText 通道（Safari/老引擎兜底）
+       4) 插入成功 toast 说明"编辑器显示文本属正常，发布后即为图片"
        ============================================================ */
     (function () {
       if (window.__mgImgDlg) return;
@@ -108,7 +106,7 @@
       }
 
       /* ---------- 自建弹框 ---------- */
-      var dlg = null, dlgAlt = null, dlgUrl = null, ctxRoot = null;
+      var dlg = null, dlgAlt = null, dlgUrl = null, dlgStatus = null, ctxRoot = null;
 
       function buildDlg() {
         dlg = document.createElement('div');
@@ -117,11 +115,12 @@
         dlg.innerHTML =
           '<div role="dialog" style="background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.28);width:440px;max-width:92vw;padding:22px 24px;font-family:system-ui,-apple-system,sans-serif;">' +
             '<h3 style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1f2430;">插入图片链接</h3>' +
-            '<p style="margin:0 0 12px;font-size:12px;color:#7a8194;">填图片直链（外链 images.unsplash.com/…、R2，或站内 /assets/img/…）</p>' +
+            '<p style="margin:0 0 12px;font-size:12px;color:#7a8194;">填图片直链（外链 images.unsplash.com/…、images.pexels.com/…、R2，或站内 /assets/img/…）</p>' +
             '<label style="display:block;font-size:12px;color:#5b6270;margin:10px 0 4px;">图片说明（alt，可留空）</label>' +
             '<input id="mg-img-alt" type="text" placeholder="例如：白洋淀的芦苇" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border:1px solid #d6dae2;border-radius:6px;outline:none;">' +
             '<label style="display:block;font-size:12px;color:#5b6270;margin:12px 0 4px;">图片直链（必填）</label>' +
-            '<input id="mg-img-url" type="text" placeholder="https://…" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border:1px solid #d6dae2;border-radius:6px;outline:none;">' +
+            '<input id="mg-img-url" type="text" placeholder="https://… 或 /assets/img/…" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border:1px solid #d6dae2;border-radius:6px;outline:none;">' +
+            '<div id="mg-img-status" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;"></div>' +
             '<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px;">' +
               '<button id="mg-img-cancel" type="button" style="padding:7px 16px;font-size:13px;border:1px solid #cfd4dd;background:#fff;color:#444c5c;border-radius:6px;cursor:pointer;">取消</button>' +
               '<button id="mg-img-ok" type="button" style="padding:7px 18px;font-size:13px;border:none;background:#3184d3;color:#fff;border-radius:6px;cursor:pointer;">插入</button>' +
@@ -130,6 +129,7 @@
         document.body.appendChild(dlg);
         dlgAlt = dlg.querySelector('#mg-img-alt');
         dlgUrl = dlg.querySelector('#mg-img-url');
+        dlgStatus = dlg.querySelector('#mg-img-status');
 
         dlg.addEventListener('mousedown', function (e) { if (e.target === dlg) closeDlg(); });
         dlg.querySelector('#mg-img-cancel').addEventListener('click', closeDlg);
@@ -138,6 +138,39 @@
           if (e.key === 'Escape') closeDlg();
           if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); insertMd(); }
         });
+        /* 失焦即探测：贴错链接当场红字提示，不用等发布 */
+        dlgUrl.addEventListener('blur', function () { var u = (dlgUrl.value || '').trim(); if (u) probeAndShow(u); });
+        dlgUrl.addEventListener('paste', function () { setTimeout(function () { probeAndShow((dlgUrl.value || '').trim()); }, 50); });
+      }
+
+      /* ---------- 图片链接探测（插入前验证，杜绝"插了不显示"） ---------- */
+      var PAGE_HINT = '（这看起来是网页链接，不是图片直链）';
+      function looksLikePageUrl(u) {
+        return /unsplash\.com\/photos\/|pexels\.com\/photo\/[^/]+\/?$|500px\.com\/photo\/|weibo\.(com|cn)|zhihu\.com/.test(u);
+      }
+      function setStatus(text, kind) {
+        if (!dlgStatus) return;
+        dlgStatus.style.display = 'block';
+        dlgStatus.textContent = text;
+        dlgStatus.style.color = kind === 'err' ? '#c0392b' : (kind === 'ok' ? '#1e8449' : '#7a8194');
+        if (dlgUrl) dlgUrl.style.borderColor = kind === 'err' ? '#d9534f' : (kind === 'ok' ? '#1e8449' : '#d6dae2');
+      }
+      function probeAndShow(url) {
+        setStatus('校验图片链接…', 'pending');
+        probeUrl(url, function (ok, why) {
+          if (ok) { setStatus('✓ 图片可正常加载', 'ok'); return; }
+          var msg = '✗ 图片加载失败（' + (why === 'timeout' ? '超时' : '链接无效或拒绝访问') + '）';
+          if (looksLikePageUrl(url)) msg += PAGE_HINT;
+          msg += '，请换直链或改用「封面图」上传';
+          setStatus(msg, 'err');
+        });
+      }
+      function probeUrl(url, cb) {
+        var im = new Image(), done = false;
+        var t = setTimeout(function () { if (!done) { done = true; cb(false, 'timeout'); } }, 8000);
+        im.onload = function () { if (!done) { done = true; clearTimeout(t); cb(im.naturalWidth > 0, im.naturalWidth > 0 ? null : 'empty'); } };
+        im.onerror = function () { if (!done) { done = true; clearTimeout(t); cb(false, 'error'); } };
+        im.src = url;
       }
 
       function openDlg(ctxBtn) {
@@ -199,7 +232,17 @@
           return hasUrl(ed, url);
         } catch (e) { return false; }
       }
-      /* ---------- 写入通道 3：CodeMirror（老版本兜底） ---------- */
+      /* ---------- 写入通道 3：beforeinput insertText（Safari/老引擎兜底） ---------- */
+      function slateBeforeinput(ed, md) {
+        try {
+          ed.focus();
+          caretEnd(ed);
+          var ev = new InputEvent('beforeinput', { inputType: 'insertText', data: md, bubbles: true, cancelable: true });
+          ed.dispatchEvent(ev);
+          return true;                                            // 结果由外层异步校验判定
+        } catch (e) { return false; }
+      }
+      /* ---------- 写入通道 4：CodeMirror（老版本兜底） ---------- */
       function cmInsert(md) {
         if (lastCM && lastCM.replaceSelection && document.contains(lastCM.getTextArea ? lastCM.getTextArea() : null)) {
           try { lastCM.replaceSelection(md); lastCM.focus(); return true; } catch (e) { return false; }
@@ -218,13 +261,29 @@
         } catch (e) { return false; }
       }
 
-      /* ---------- 插入：定位（ctxRoot→last→文档）× 写入（paste→exec→CM→ta） ---------- */
+      /* ---------- 插入：定位（ctxRoot→last→文档）× 写入（paste→exec→beforeinput→CM→ta） ---------- */
       function insertMd() {
         var url = (dlgUrl.value || '').trim().replace(/\s+/g, '');
         var alt = (dlgAlt.value || '').trim().replace(/[\[\]]/g, '');
         if (!url) { dlgUrl.style.borderColor = '#d9534f'; dlgUrl.focus(); return; }
         var md = '![' + alt + '](' + url + ')';
 
+        /* 先探测图片能否加载——贴错网页链接/死链时当场拦下，不插入 */
+        setStatus('校验图片链接…', 'pending');
+        probeUrl(url, function (ok, why) {
+          if (!ok) {
+            var msg = '✗ 图片加载失败（' + (why === 'timeout' ? '超时' : '链接无效或拒绝访问') + '）';
+            if (looksLikePageUrl(url)) msg += PAGE_HINT;
+            msg += '。已取消插入，请换直链或改用「封面图」上传。';
+            setStatus(msg, 'err');
+            return;
+          }
+          setStatus('✓ 图片可正常加载', 'ok');
+          doInsert(md, url);
+        });
+      }
+
+      function doInsert(md, url) {
         /* 候选编辑器：字段容器内 → 最后聚焦的 → 全文档 */
         var candidates = pickEditors(ctxRoot);
         if (lastEditor && document.contains(lastEditor) && candidates.indexOf(lastEditor) === -1) candidates.push(lastEditor);
@@ -237,8 +296,15 @@
           var ed = candidates[ci++];
           if (slatePaste(ed, md)) {
             setTimeout(function () {                              // 异步校验 paste 结果
-              if (hasUrl(ed, url)) { closeDlg(); toast('已插入图片 ✓'); return; }
-              if (slateExec(ed, md, url)) { closeDlg(); toast('已插入图片 ✓'); return; }
+              if (hasUrl(ed, url)) { closeDlg(); toast('已插入图片 ✓（编辑器里显示为文本属正常，发布后即为图片）'); return; }
+              if (slateExec(ed, md, url)) { closeDlg(); toast('已插入图片 ✓（编辑器里显示为文本属正常，发布后即为图片）'); return; }
+              if (slateBeforeinput(ed, md)) {
+                setTimeout(function () {
+                  if (hasUrl(ed, url)) { closeDlg(); toast('已插入图片 ✓（编辑器里显示为文本属正常，发布后即为图片）'); return; }
+                  tryEditor();
+                }, 150);
+                return;
+              }
               tryEditor();
             }, 150);
           } else { tryEditor(); }
