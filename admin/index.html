@@ -12,30 +12,38 @@
     <script src="https://unpkg.com/decap-cms@3.17.1/dist/decap-cms.js"></script>
     <script>
     /* ============================================================
-       自定义编辑组件「图片链接」：
-       - 注册组件让已有 ![alt](url) 在 Rich Text 里可回显/点击编辑
-       - 插图入口由下方自建工具栏按钮 + 弹框接管
+       覆盖 Decap 内置「image」编辑器组件（registerEditorComponent
+       同 id 即覆盖：editorComponents.set(id, …)）
+       旧面板：外层 IMAGE 徽章 + 折叠箭头 + 内层 IMAGE 控件 +
+               ALT TEXT / TITLE 两个输入框 —— 笨重难看。
+       新设计：
+       - 组件标签改「图片」，表单只留一个图片选择器
+       - ALT/TITLE 从表单砍掉（正文插图极少用）；
+         pattern/fromBlock/toBlock 仍完整带 alt/title，
+         老文章里已有的 alt/title 数据不会丢
+       - 卡片视觉由下方「卡片重绘」脚本接管
        ============================================================ */
     window.addEventListener('load', function () {
       try {
         if (window.CMS && CMS.registerEditorComponent) {
           CMS.registerEditorComponent({
-            id: 'image-url',
-            label: '图片链接',
+            id: 'image',                       // 同名覆盖内置 image 组件
+            label: '图片',
             icon: 'image',
             fields: [
-              { name: 'alt', label: '图片说明（可空）', widget: 'string', required: false },
-              { name: 'url', label: '图片直链（https:// 开头或 /assets/img/... ）', widget: 'string' },
+              { name: 'image', label: '', widget: 'image', media_library: { allow_multiple: false } },
             ],
-            pattern: /^!\[([^\]]*)\]\(([^)\s]+)\)$/,
-            fromBlock: function (m) { return { alt: m[1], url: m[2] }; },
-            toBlock: function (o) { return '![' + (o.alt || '') + '](' + (o.url || '') + ')'; },
+            pattern: /^!\[([^\]]*)\]\((.*?)(\s+"([^"]*)")?\)/,
+            fromBlock: function (m) { return { image: m[2], alt: m[1], title: m[4] }; },
+            toBlock: function (o) {
+              return '![' + (o.alt || '') + '](' + (o.image || '') + (o.title ? ' "' + o.title + '"' : '') + ')';
+            },
             toPreview: function (o) {
-              return '<img src="' + (o.url || '') + '" alt="' + (o.alt || '') + '" style="max-width:100%">';
+              return '<img src="' + (o.image || '') + '" alt="' + (o.alt || '') + '" style="max-width:100%;border-radius:8px">';
             },
           });
         }
-      } catch (e) { /* 注册失败不影响 CMS 使用 */ }
+      } catch (e) { /* 注册失败则回落内置组件，不影响使用 */ }
       try { if (window.CMS && CMS.init) CMS.init(); } catch (e) { /* 兜底：Decap 自动初始化 */ }
     });
     </script>
@@ -468,6 +476,87 @@
       /* 编辑器 DOM 频繁重挂载，持续兜底新出现的图片 */
       new MutationObserver(function () { scan(); })
         .observe(document.body, { childList: true, subtree: true });
+    })();
+    </script>
+    <script>
+    /* ============================================================
+       编辑器「图片」组件卡片重绘（v2，配合上方同名覆盖组件）
+       背景：Decap 3.x 类名是哈希（无稳定 nc-* class），纯 CSS 无法
+       定位组件卡片 → 用 JS 打标，CSS 只认自己的标记类。
+       - 卡片根：从图片控件按钮向上找最近的 [data-slate-void="true"]
+       - 徽章（IMAGE / ALT TEXT / TITLE / 图片）：叶子节点文本匹配 → 隐藏
+       - 按钮：按文案加类（墨绿 soft / 朱砂 danger），重绘为小胶囊
+       ============================================================ */
+    (function () {
+      if (window.__mgImgCard) return;
+      window.__mgImgCard = true;
+
+      var style = document.createElement('style');
+      style.textContent = [
+        '/* 图片组件卡片：宣纸底紧凑卡 */',
+        '[data-slate-editor="true"] .mgx-imgcard{background:#fbfaf6;border:1px solid #e5e0d4;border-radius:10px;padding:10px 12px;margin:8px 0;box-shadow:0 1px 3px rgba(60,50,30,.06);}',
+        '/* 卡内去灰底（清掉默认的灰头、棋盘格底） */',
+        '.mgx-imgcard div{background-color:transparent!important;}',
+        '/* 冗余徽章（IMAGE/ALT TEXT/TITLE/图片）隐藏 */',
+        '.mgx-imgcard .mgx-chip{display:none!important;}',
+        '/* 图片预览：圆角细边 */',
+        '.mgx-imgcard img{border-radius:8px;border:1px solid #e8e3d8;max-width:100%;}',
+        '/* 按钮统一小胶囊 */',
+        '.mgx-imgcard button{font-size:12px!important;padding:3px 12px!important;border-radius:999px!important;border:1px solid #d8d2c4!important;background:#fff!important;cursor:pointer;}',
+        '.mgx-imgcard button.mgx-btn-soft{color:#3f5a4c!important;border-color:#c7d3ca!important;background:#f3f7f4!important;}',
+        '.mgx-imgcard button.mgx-btn-danger{color:#a5462f!important;border-color:#e2c8bc!important;background:#fdf6f2!important;}',
+        '.mgx-imgcard button:hover{filter:brightness(.96);}'
+      ].join('\n');
+      document.head.appendChild(style);
+
+      var CHIP_RE = /^(image|alt text|title|图片|图片链接)$/i;
+      var BTN_RE = /^(choose different image|choose an image|replace with url|remove image|remove all images)$/i;
+
+      function markCard(btn) {
+        var el = btn, i;
+        for (i = 0; i < 14 && el && el !== document.body; i++, el = el.parentElement) {
+          if (el.getAttribute && el.getAttribute('data-slate-void') === 'true') break;
+        }
+        if (!el || el === document.body || !el.getAttribute || el.getAttribute('data-slate-void') !== 'true') return;
+        if (el.classList.contains('mgx-imgcard')) return;
+        el.classList.add('mgx-imgcard');
+
+        /* 隐藏冗余徽章（叶子节点 + 文本匹配） */
+        var all = el.querySelectorAll('*');
+        for (var j = 0; j < all.length; j++) {
+          var n = all[j];
+          if (n.children.length === 0 && !/^(INPUT|TEXTAREA|BUTTON|SVG|IMG)$/.test(n.tagName) &&
+              CHIP_RE.test((n.textContent || '').trim())) {
+            n.classList.add('mgx-chip');
+          }
+        }
+        /* 按钮按文案分类上色 */
+        var bs = el.querySelectorAll('button');
+        for (var k = 0; k < bs.length; k++) {
+          var t = (bs[k].textContent || '').trim();
+          if (/remove|移除|删除/i.test(t)) bs[k].classList.add('mgx-btn-danger');
+          else if (/choose|replace|选择|替换/i.test(t)) bs[k].classList.add('mgx-btn-soft');
+        }
+      }
+
+      function scan() {
+        var btns = document.querySelectorAll('[data-slate-editor="true"] button');
+        for (var i = 0; i < btns.length; i++) {
+          if (BTN_RE.test((btns[i].textContent || '').trim())) markCard(btns[i]);
+        }
+      }
+
+      scan();
+      /* 编辑器重挂载频繁，持续兜底 */
+      var scheduled = false;
+      new MutationObserver(function () {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(function () {
+          scheduled = false;
+          try { scan(); } catch (e) { /* 静默 */ }
+        });
+      }).observe(document.body, { childList: true, subtree: true });
     })();
     </script>
   </body>
