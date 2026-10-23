@@ -78,6 +78,26 @@ wide: true
     font-family: var(--sans);
   }
   .videos-list .poster--source { background: var(--bg-tint); }
+  /* 本地封面卡：真首帧未抓到时的占位（标题首字 + 固定渐变），抓到 poster 后自动替换 */
+  .videos-list .poster .frame-cover {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.55rem;
+  }
+  .videos-list .poster .frame-cover-char {
+    font-family: var(--serif);
+    font-size: 2.3rem; line-height: 1;
+    color: rgba(31, 29, 27, 0.52);
+  }
+  .videos-list .poster .frame-cover-tag {
+    font-size: 0.66rem; letter-spacing: 0.18em;
+    color: rgba(31, 29, 27, 0.4);
+    font-family: var(--sans);
+  }
+  .videos-list .poster .frame-cover--0 { background: linear-gradient(135deg, #f5efe3 0%, #e9dfc9 100%); }
+  .videos-list .poster .frame-cover--1 { background: linear-gradient(135deg, #eef0e9 0%, #dde3d4 100%); }
+  .videos-list .poster .frame-cover--2 { background: linear-gradient(135deg, #f7ece5 0%, #ecd7c7 100%); }
+  .videos-list .poster .frame-cover--3 { background: linear-gradient(135deg, #f3f0e9 0%, #e3ded1 100%); }
+  .videos-list .poster .frame-cover--4 { background: linear-gradient(135deg, #f1ede5 0%, #e7dcc6 100%); }
 
   .videos-list .meta { display: flex; flex-direction: column; }
   .videos-list .vol {
@@ -227,7 +247,7 @@ wide: true
     <li data-cats="{{ vcat }}">
       <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title }}">
         {% if v.poster %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
-        {% elsif v.tags contains 'douyin' %}<span class="src-mark">抖音</span>{% endif %}
+        {% elsif v.tags contains 'douyin' %}{% assign gidx = v.title | size | modulo: 5 %}<span class="frame-cover frame-cover--{{ gidx }}"><span class="frame-cover-char">{{ v.title | slice: 0, 1 }}</span><span class="frame-cover-tag">抖音收藏</span></span>{% endif %}
         <span class="play"></span>
         {% if v.duration %}<span class="duration">{{ v.duration }}</span>{% endif %}
       </a>
