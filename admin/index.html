@@ -571,167 +571,184 @@
     })();
     </script>
     <script>
-    /* ============================================================
-       编辑器字段分区 v3（基于 Decap 内部结构的确定性定位，数据零改动）
-       v3 关键变化（修 v2「真实 DOM 下一张卡都没出现」）：
-       - 不再靠 label 文本猜字段：Decap 每个字段的 <label for=...> 的 for
-         是 uniqueId(`${字段名}-field-`)，形如 "bvid-field-3"，
-         直接用字段名（htmlFor 前缀）识别字段，不受语言包/（可选）后缀影响
-       - 字段块 = label.closest('div[aria-label]')（EditorControl 的
-         ControlContainer，源码级稳定锚点），不再用「≥2 个带标兄弟」启发式
-       - observer 只扫 label[for]，不再全文档 querySelectorAll('*')，不卡 UI
-       - 已在 Decap 3.17.1 官方同版本环境实测：分区卡出现、默认折叠、
-         点击展开均正常
-       ============================================================ */
-    (function () {
-      if (window.__mgSections) return;
-      window.__mgSections = true;
-
-      /* 字段名 → [分区名, 提示]；不在表内的字段归入顶部「基本信息」，不出卡 */
-      var SEC = {
-        bvid:       ['视频来源', '三选一，可留空'],
-        video_url:  ['视频来源', '三选一，可留空'],
-        douyin_id:  ['视频来源', '三选一，可留空'],
-        douyin_type:['视频来源', '三选一，可留空'],
-        audio_url:  ['音频', '可留空'],
-        cover:      ['封面', '可留空'],
-        tags:       ['分类标签', '可留空'],
-        pdf_url:    ['文档文件', '填 R2 直链'],
-        body:       ['正文 / 内容', null]
-      };
-      /* 文本兜底（仅当 htmlFor 异常缺失时用，正常情况不会走到） */
-      var TEXT_RULES = [
-        { re: /^正文/, sec: '正文 / 内容' },
-        { re: /^音频/, sec: '音频' },
-        { re: /^(b站|r2视频|抖音)/, sec: '视频来源' },
-        { re: /^r2pdf/, sec: '文档文件' },
-        { re: /^(封面|书影)/, sec: '封面' },
-        { re: /^标签/, sec: '分类标签' }
-      ];
-      var DEFAULT_COLLAPSED = { '视频来源': 1, '音频': 1, '封面': 1, '分类标签': 1, '文档文件': 1 };
-      var userState = {};
-
-      var style = document.createElement('style');
-      style.textContent = [
-        '.mgx-sec{display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding:7px 12px;background:#fbfaf6;border:1px solid #e5e0d4;border-left:3px solid #3f5a4c;border-radius:6px;font-size:13px;font-weight:600;color:#3f5a4c;cursor:pointer;user-select:none;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}',
-        '.mgx-sec:hover{background:#f4f1e8;}',
-        '.mgx-sec .mgx-note{font-weight:400;font-size:11px;color:#9a9384;}',
-        '.mgx-sec::after{content:"\\25BE";margin-left:auto;color:#b9b2a2;font-size:12px;}',
-        '.mgx-sec.mgx-collapsed-sec::after{content:"\\25B8";}',
-        '.mgx-cc.mgx-collapsed{display:none!important;}'
-      ].join('\n');
-      document.head.appendChild(style);
-
-      function buildSec(sec, note) {
-        var d = document.createElement('div');
-        d.className = 'mgx-sec';
-        d.setAttribute('data-sec', sec);
-        d.appendChild(document.createTextNode(sec));
-        if (note) {
-          var sp = document.createElement('span');
-          sp.className = 'mgx-note';
-          sp.textContent = '（' + note + '）';
-          d.appendChild(sp);
-        }
-        return d;
-      }
-
-      /* 找字段块：label → 含 aria-label 的最近 div 祖先（ControlContainer） */
-      function blockOf(label) {
-        var el = label;
-        while (el && el !== document.body) {
-          if (el.tagName === 'DIV' && el.getAttribute('aria-label')) return el;
-          el = el.parentElement;
-        }
-        return null;
-      }
-
-      /* 收集编辑器内所有顶层字段：[{ name, cc }]，按文档顺序、按块去重 */
-      function collectFields() {
-        var out = [], byCC = new Map();
-        var labels = document.querySelectorAll('label[for]');
-        for (var i = 0; i < labels.length; i++) {
-          var lb = labels[i];
-          var forId = lb.getAttribute('for') || '';
-          var m = /^([A-Za-z][A-Za-z0-9_]*)-field-\d+$/.exec(forId);
-          if (!m) continue;
-          var cc = blockOf(lb);
-          if (!cc || byCC.has(cc)) continue;
-          byCC.set(cc, 1);
-          out.push({ name: m[1], cc: cc, label: lb });
-        }
-        return out;
-      }
-
-      function secOf(f) {
-        if (SEC[f.name]) return SEC[f.name][0];
-        /* 兜底：按 label 文本 */
-        var t = (f.label.textContent || '').replace(/（可选）/g, '').replace(/\s+/g, '');
-        for (var i = 0; i < TEXT_RULES.length; i++) if (TEXT_RULES[i].re.test(t)) return TEXT_RULES[i].sec;
-        return null;
-      }
-
-      var observer = null;
-
-      function apply() {
-        if (observer) observer.disconnect();
-        try {
-          /* 重置上一轮注入（幂等） */
-          var prev = document.querySelectorAll('.mgx-sec');
-          for (var p = 0; p < prev.length; p++) prev[p].remove();
-          var flds = document.querySelectorAll('.mgx-cc');
-          for (var f = 0; f < flds.length; f++) flds[f].classList.remove('mgx-cc', 'mgx-collapsed');
-
-          var fields = collectFields();
-          if (fields.length < 2) return;
-
-          var lastSec = null;
-          var headers = [];
-          for (var k = 0; k < fields.length; k++) {
-            var it = fields[k];
-            var sec = secOf(it);
-            it.cc.classList.add('mgx-cc');
-            if (!sec || sec === lastSec) { if (sec) lastSec = sec; continue; }
-            lastSec = sec;
-            var header = buildSec(sec, SEC[it.name] ? SEC[it.name][1] : null);
-            it.cc.parentElement.insertBefore(header, it.cc);
-            headers.push({ header: header, sec: sec, firstCC: it.cc });
+      /* ============================================================
+         编辑器字段分区 v4（修 v3 观察器失联 + 防自触发死循环）
+         v3 两个根因（本站真实环境实测定位）：
+         1. apply() 在 fields<2 时提前 return，跳过了末尾的
+            observer.observe() → 登录页渲染耗掉一次 apply 后，
+            观察器永久断开，编辑器挂载再也无人响应
+         2. 每次 apply 都「删卡重插」，必然触发自身观察器 → 死循环风险
+         v4 方案：
+         - 观察器永不 disconnect，常驻监听
+         - apply 幂等：签名（字段名序列）未变且卡已在 → 只补齐被 React
+           重渲染抹掉的折叠类（classList 对已处状态是 no-op，不再触发
+           mutation，循环自然收敛）；签名变了才全量重建
+         - 字段识别沿用 v3 的 Decap 源码级锚点：label[for]=「字段名-field-N」
+           + label.closest(div[aria-label])（ControlContainer）
+         ============================================================ */
+      (function () {
+        if (window.__mgSections) return;
+        window.__mgSections = true;
+      
+        /* 字段名 → [分区名, 提示]；不在表内的字段不出卡，留在原位 */
+        var SEC = {
+          bvid:       ['视频来源', '三选一，可留空'],
+          video_url:  ['视频来源', '三选一，可留空'],
+          douyin_id:  ['视频来源', '三选一，可留空'],
+          douyin_type:['视频来源', '三选一，可留空'],
+          audio_url:  ['音频', '可留空'],
+          cover:      ['封面', '可留空'],
+          tags:       ['分类标签', '可留空'],
+          pdf_url:    ['文档文件', '填 R2 直链'],
+          body:       ['正文 / 内容', null]
+        };
+        /* 文本兜底（仅当 htmlFor 异常缺失时用，正常情况不会走到） */
+        var TEXT_RULES = [
+          { re: /^正文/, sec: '正文 / 内容' },
+          { re: /^音频/, sec: '音频' },
+          { re: /^(b站|r2视频|抖音)/, sec: '视频来源' },
+          { re: /^r2pdf/, sec: '文档文件' },
+          { re: /^(封面|书影)/, sec: '封面' },
+          { re: /^标签/, sec: '分类标签' }
+        ];
+        var DEFAULT_COLLAPSED = { '视频来源': 1, '音频': 1, '封面': 1, '分类标签': 1, '文档文件': 1 };
+        var userState = {};      /* 手动展开/收起记忆（内存态） */
+        var lastSig = null;      /* 上一轮已应用到的字段签名 */
+      
+        var style = document.createElement('style');
+        style.textContent = [
+          '.mgx-sec{display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding:7px 12px;background:#fbfaf6;border:1px solid #e5e0d4;border-left:3px solid #3f5a4c;border-radius:6px;font-size:13px;font-weight:600;color:#3f5a4c;cursor:pointer;user-select:none;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}',
+          '.mgx-sec:hover{background:#f4f1e8;}',
+          '.mgx-sec .mgx-note{font-weight:400;font-size:11px;color:#9a9384;}',
+          '.mgx-sec::after{content:"\\25BE";margin-left:auto;color:#b9b2a2;font-size:12px;}',
+          '.mgx-sec.mgx-collapsed-sec::after{content:"\\25B8";}',
+          '.mgx-cc.mgx-collapsed{display:none!important;}'
+        ].join('\n');
+        document.head.appendChild(style);
+      
+        function buildSec(sec, note) {
+          var d = document.createElement('div');
+          d.className = 'mgx-sec';
+          d.setAttribute('data-sec', sec);
+          d.appendChild(document.createTextNode(sec));
+          if (note) {
+            var sp = document.createElement('span');
+            sp.className = 'mgx-note';
+            sp.textContent = '（' + note + '）';
+            d.appendChild(sp);
           }
-          if (!headers.length) return;
-
-          function collapseFrom(header, firstCC, collapsed) {
-            header.classList.toggle('mgx-collapsed-sec', collapsed);
-            var s = firstCC;
-            while (s) {
-              if (s.classList && s.classList.contains('mgx-sec')) break;
+          return d;
+        }
+      
+        /* 找字段块：label → 含 aria-label 的最近 div 祖先（ControlContainer） */
+        function blockOf(label) {
+          var el = label;
+          while (el && el !== document.body) {
+            if (el.tagName === 'DIV' && el.getAttribute('aria-label')) return el;
+            el = el.parentElement;
+          }
+          return null;
+        }
+      
+        /* 收集编辑器内所有顶层字段：[{ name, cc, label }]，按文档顺序、按块去重 */
+        function collectFields() {
+          var out = [], byCC = new Map();
+          var labels = document.querySelectorAll('label[for]');
+          for (var i = 0; i < labels.length; i++) {
+            var lb = labels[i];
+            var forId = lb.getAttribute('for') || '';
+            var m = /^([A-Za-z][A-Za-z0-9_]*)-field-\d+$/.exec(forId);
+            if (!m) continue;
+            var cc = blockOf(lb);
+            if (!cc || byCC.has(cc)) continue;
+            byCC.set(cc, 1);
+            out.push({ name: m[1], cc: cc, label: lb });
+          }
+          return out;
+        }
+      
+        function secOf(f) {
+          if (SEC[f.name]) return SEC[f.name][0];
+          /* 兜底：按 label 文本 */
+          var t = (f.label.textContent || '').replace(/（可选）/g, '').replace(/\s+/g, '');
+          for (var i = 0; i < TEXT_RULES.length; i++) if (TEXT_RULES[i].re.test(t)) return TEXT_RULES[i].sec;
+          return null;
+        }
+      
+        function desiredCollapsed(sec) {
+          return (userState[sec] !== undefined) ? !!userState[sec] : !!DEFAULT_COLLAPSED[sec];
+        }
+      
+        /* 把每个分区头及其后字段的折叠类刷到目标态。
+           classList.toggle 对已处状态是 no-op（不写 attribute、不触发 mutation），
+           所以本函数在状态未变时零副作用，可放心反复调用 */
+        function ensureMarks() {
+          var headers = document.querySelectorAll('.mgx-sec');
+          for (var i = 0; i < headers.length; i++) {
+            var hd = headers[i];
+            var sec = hd.getAttribute('data-sec');
+            var collapsed = desiredCollapsed(sec);
+            hd.classList.toggle('mgx-collapsed-sec', collapsed);
+            var s = hd.nextElementSibling;
+            while (s && !(s.classList && s.classList.contains('mgx-sec'))) {
               if (s.classList && s.classList.contains('mgx-cc')) s.classList.toggle('mgx-collapsed', collapsed);
               s = s.nextElementSibling;
             }
           }
-          for (var h = 0; h < headers.length; h++) {
+        }
+      
+        /* 全量重建：移除旧卡、清标记、按字段序列插分区头 */
+        function fullApply(fields) {
+          var prev = document.querySelectorAll('.mgx-sec');
+          for (var p = 0; p < prev.length; p++) prev[p].remove();
+          var flds = document.querySelectorAll('.mgx-cc');
+          for (var f = 0; f < flds.length; f++) flds[f].classList.remove('mgx-cc', 'mgx-collapsed');
+      
+          var lastSec = null;
+          for (var k = 0; k < fields.length; k++) {
+            var it = fields[k];
+            var sec = secOf(it);
+            if (!sec) continue;
+            it.cc.classList.add('mgx-cc');
+            if (sec === lastSec) continue;
+            lastSec = sec;
+            var header = buildSec(sec, SEC[it.name] ? SEC[it.name][1] : null);
+            it.cc.parentElement.insertBefore(header, it.cc);
             (function (hd) {
-              var collapsed = (userState[hd.sec] !== undefined) ? userState[hd.sec] : !!DEFAULT_COLLAPSED[hd.sec];
-              collapseFrom(hd.header, hd.firstCC, collapsed);
-              hd.header.addEventListener('click', function () {
-                var now = !(userState[hd.sec] !== undefined ? userState[hd.sec] : !!DEFAULT_COLLAPSED[hd.sec]);
-                userState[hd.sec] = now;
-                collapseFrom(hd.header, hd.firstCC, now);
+              hd.addEventListener('click', function () {
+                var name = hd.getAttribute('data-sec');
+                userState[name] = !desiredCollapsed(name);
+                ensureMarks();
               });
-            })(headers[h]);
+            })(header);
           }
-        } catch (e) { /* 静默，不影响编辑器 */ }
-        if (observer) observer.observe(document.body, { childList: true, subtree: true });
-      }
-
-      apply();
-      var scheduled = false;
-      observer = new MutationObserver(function () {
-        if (scheduled) return;
-        scheduled = true;
-        setTimeout(function () { scheduled = false; apply(); }, 200);
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-    })();
+          ensureMarks();
+        }
+      
+        function apply() {
+          try {
+            var fields = collectFields();
+            if (!fields.length) { lastSig = null; return; }
+            var sig = fields.map(function (f) { return f.name; }).join('|');
+            /* 已应用过且卡还在 → 只补折叠类（幂等，无 mutation 即收敛）；
+               卡被 React 重渲染带走（querySelector 落空）→ 重建 */
+            if (sig === lastSig && document.querySelector('.mgx-sec')) {
+              ensureMarks();
+              return;
+            }
+            lastSig = sig;
+            fullApply(fields);
+          } catch (e) { /* 静默，不影响编辑器 */ }
+        }
+      
+        apply();
+        var scheduled = false;
+        new MutationObserver(function () {
+          if (scheduled) return;
+          scheduled = true;
+          setTimeout(function () { scheduled = false; apply(); }, 150);
+        }).observe(document.body, { childList: true, subtree: true });
+      })();
     </script>
   </body>
 </html>
