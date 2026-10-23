@@ -31,7 +31,7 @@ collections:
     folder: "_posts"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    # 列表页每行显示「标题 + 发布日期」（date 是 front matter 里的字段）
+    # 列表页每行显示「日期 + 标题」（date 是 front matter 里的字段）
     summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false

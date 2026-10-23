@@ -570,5 +570,118 @@
       }).observe(document.body, { childList: true, subtree: true });
     })();
     </script>
+    <script>
+    /* ============================================================
+       编辑器字段分区卡 v1（纯视觉，不改数据结构）
+       目标：Decap 3.17.1 已无 fieldset 原生分组组件，object 又会嵌套数据
+       （会破坏前端读取，且 441 篇旧视频不可动）→ 用 JS 在编辑器里注入
+       带标题的分区卡（基本信息 / 视频来源 / 音频 / 封面 / 分类 / 正文），
+       点击可折叠。旧的扁平 front matter 一字不动，新条目也只是扁平存储。
+       - 按字段 label 精确匹配，定位到字段块后在其前插入分区标题
+       - 同一分区只插一次标题（按出现顺序）
+       - 每次 mutation 重置重画，保证切条目/重挂载后仍正确
+       ============================================================ */
+    (function () {
+      if (window.__mgSections) return;
+      window.__mgSections = true;
+
+      /* label -> 分区信息（s=标题, n=副注）。键为各集合里实际的 label 文本 */
+      var MAP = {
+        "标题": { s: "基本信息" }, "书名 / 篇名": { s: "基本信息" }, "歌名": { s: "基本信息" },
+        "B站 BV 号": { s: "视频来源", n: "三选一，可留空" },
+        "R2 视频 mp4 直链": { s: "视频来源", n: "三选一，可留空" },
+        "抖音视频": { s: "视频来源", n: "三选一，可留空" },
+        "抖音作品类型": { s: "视频来源", n: "三选一，可留空" },
+        "音频直链（mp3/ogg）": { s: "音频", n: "可留空" },
+        "书影 / 封面图": { s: "封面", n: "可留空" },
+        "封面图 / 书影（可选）": { s: "封面", n: "可留空" },
+        "封面图 / 专辑图（可选）": { s: "封面", n: "可留空" },
+        "封面图（可选，显示在文章顶部）": { s: "封面", n: "可留空" },
+        "标签（可留空）": { s: "分类标签", n: "可留空" },
+        "R2 PDF 直链": { s: "文档文件", n: "填 R2 直链" },
+        "正文（可留空）": { s: "正文 / 内容" },
+        "正文（笺注内容）": { s: "正文 / 内容" },
+        "正文（笺注 / 赏析，可留空）": { s: "正文 / 内容" },
+        "正文（歌词 / 赏析，可留空）": { s: "正文 / 内容" }
+      };
+
+      var style = document.createElement('style');
+      style.textContent = [
+        '/* 分区标题卡（可点击折叠） */',
+        '.mgx-sec{display:flex;align-items:center;gap:8px;margin:20px 0 10px;padding:7px 12px;background:#fbfaf6;border:1px solid #e5e0d4;border-left:3px solid #3f5a4c;border-radius:6px;font-size:13px;font-weight:600;color:#3f5a4c;cursor:pointer;user-select:none;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}',
+        '.mgx-sec:hover{background:#f4f1e8;}',
+        '.mgx-sec .mgx-note{font-weight:400;font-size:11px;color:#9a9384;}',
+        '.mgx-sec::after{content:"\\25BE";margin-left:auto;color:#b9b2a2;font-size:11px;transition:transform .15s;}',
+        '.mgx-sec.mgx-collapsed-sec::after{content:"\\25B8";}',
+        '.mgx-field.mgx-collapsed{display:none!important;}'
+      ].join('\n');
+      document.head.appendChild(style);
+
+      /* 从 label 节点向上爬，找到「有兄弟节点的字段块」 */
+      function findBlock(labelEl) {
+        var el = labelEl;
+        while (el && el.parentElement) {
+          var p = el.parentElement;
+          if (p.children.length > 1) return el;
+          el = p;
+        }
+        return labelEl.parentElement;
+      }
+      function buildSec(sec, note) {
+        var d = document.createElement('div');
+        d.className = 'mgx-sec';
+        d.appendChild(document.createTextNode(sec));
+        if (note) {
+          var sp = document.createElement('span');
+          sp.className = 'mgx-note';
+          sp.textContent = '（' + note + '）';
+          d.appendChild(sp);
+        }
+        return d;
+      }
+
+      function apply() {
+        /* 重置上一轮注入，保证幂等（切条目/重挂载后仍能重画） */
+        var prev = document.querySelectorAll('.mgx-sec');
+        for (var p = 0; p < prev.length; p++) prev[p].remove();
+        var flds = document.querySelectorAll('.mgx-field');
+        for (var f = 0; f < flds.length; f++) flds[f].classList.remove('mgx-field', 'mgx-collapsed');
+
+        var inserted = {};
+        var all = document.querySelectorAll('*');
+        for (var i = 0; i < all.length; i++) {
+          var el = all[i];
+          if (el.children.length > 0) continue;            // 只取叶子文本节点
+          var t = (el.textContent || '').trim();
+          var m = MAP[t];
+          if (!m) continue;
+          if (inserted[m.s]) continue;                     // 同分区只插一次
+          inserted[m.s] = true;
+          var block = findBlock(el);
+          if (!block || !block.parentElement) continue;
+          var sec = buildSec(m.s, m.n);
+          block.parentElement.insertBefore(sec, block);
+          block.classList.add('mgx-field');
+          (function (header, firstBlock) {
+            header.addEventListener('click', function () {
+              var collapsed = header.classList.toggle('mgx-collapsed-sec');
+              var n = firstBlock.nextElementSibling;
+              while (n && !n.classList.contains('mgx-sec')) {
+                if (n.classList.contains('mgx-field')) n.classList.toggle('mgx-collapsed', collapsed);
+                n = n.nextElementSibling;
+              }
+            });
+          })(sec, block);
+        }
+      }
+
+      apply();
+      var scheduled = false;
+      new MutationObserver(function () {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(function () { scheduled = false; try { apply(); } catch (e) { /* 静默 */ } });
+      }).observe(document.body, { childList: true, subtree: true });
+    })();
   </body>
 </html>
