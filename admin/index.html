@@ -395,5 +395,80 @@
       }).observe(document.body, { childList: true, subtree: true });
     })();
     </script>
+    <script>
+    /* ============================================================
+       编辑器图片块美化（v1）
+       目标：Decap 3.17.1 富文本内嵌图片 / 封面图控件破图时，
+       浏览器默认破图标灰格很难看 → 改为优雅占位卡。
+       - 行内富文本图片（.slate-image）做成居中圆角卡片
+       - 破图：隐藏浏览器破图标，显示「图片无法在编辑器中预览 + 直链」
+         （直链可见，方便核对是否填错链接或防盗链）
+       - 封面图等 image 控件预览破图同样处理
+       ============================================================ */
+    (function () {
+      if (window.__mgImgBeautify) return;
+      window.__mgImgBeautify = true;
+
+      /* 占位图标：简洁的图片框线稿 */
+      var ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%239aa1b2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E";
+      var TRANSPARENT = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+      var style = document.createElement('style');
+      style.textContent = [
+        '/* 行内富文本图片卡片化 */',
+        '[data-slate-editor="true"] .slate-image{display:inline-block;max-width:100%;margin:6px 0;vertical-align:middle;}',
+        '[data-slate-editor="true"] .slate-image img{display:block;max-width:100%;height:auto;border-radius:8px;border:1px solid #e6e8ee;box-shadow:0 1px 4px rgba(20,28,46,.08);}',
+        '/* 封面图等 image 控件预览图，圆角细边 */',
+        'img[role="presentation"]{border-radius:8px;}',
+        '/* 破图：隐藏浏览器破图标（alt 文字 / 破图 glyph） */',
+        'img.mg-img-broken{color:transparent!important;font-size:0!important;}',
+        '/* 行内富文本破图 → 占位卡（含直链，便于核对） */',
+        '[data-slate-editor="true"] .slate-image.mg-broken{display:inline-block;min-width:180px;min-height:96px;padding:12px 14px;border:1px dashed #ccd2de;border-radius:10px;background:#f6f8fb;position:relative;vertical-align:middle;}',
+        '[data-slate-editor="true"] .slate-image.mg-broken img{display:none!important;}',
+        '[data-slate-editor="true"] .slate-image.mg-broken::before{content:"\\1F5BC 图片无法在编辑器中预览\\A" attr(data-mg-url);white-space:pre-wrap;font-size:12px;line-height:1.5;color:#8a90a2;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;word-break:break-all;}',
+        '/* 非行内破图（image 控件预览等）→ 占位框 */',
+        'img.mg-img-broken:not([data-slate-editor] img){min-width:120px;min-height:80px;background:#f6f8fb url("' + ICON + '") center/36px no-repeat;border:1px dashed #ccd2de;border-radius:8px;}'
+      ].join('\n');
+      document.head.appendChild(style);
+
+      function markBroken(img) {
+        var host = null;
+        try { host = img.closest('.slate-image'); } catch (e) { /* 老浏览器兜底 */ }
+        if (!host) host = img.parentElement;
+        if (host) {
+          host.classList.add('mg-broken');
+          try { host.setAttribute('data-mg-url', img.getAttribute('src') || ''); } catch (e) { /* 静默 */ }
+        }
+        img.classList.add('mg-img-broken');
+        if (!img.title) {
+          try { img.title = '图片无法预览：' + (img.getAttribute('src') || ''); } catch (e) { /* 静默 */ }
+        }
+        /* 非行内破图：换成透明像素，消除浏览器破图标（行内图不改 src，保留 Slate 节点数据） */
+        if (!host || !host.classList.contains('slate-image')) {
+          try {
+            if (/^https?:/i.test(img.src) || img.src.indexOf('data:') !== 0) img.src = TRANSPARENT;
+          } catch (e) { /* 静默 */ }
+        }
+      }
+
+      function fixImg(img) {
+        if (!img || !img.tagName || img.tagName !== 'IMG' || img.dataset.mgFixed) return;
+        img.dataset.mgFixed = '1';
+        img.addEventListener('error', function () { markBroken(img); });
+        img.addEventListener('load', function () { if (img.naturalWidth === 0) markBroken(img); });
+        if (img.complete && img.naturalWidth === 0) markBroken(img); /* 已坏（error 早已触发过的） */
+      }
+
+      function scan() {
+        var imgs = document.querySelectorAll('img:not([data-mg-fixed])');
+        for (var i = 0; i < imgs.length; i++) fixImg(imgs[i]);
+      }
+
+      scan();
+      /* 编辑器 DOM 频繁重挂载，持续兜底新出现的图片 */
+      new MutationObserver(function () { scan(); })
+        .observe(document.body, { childList: true, subtree: true });
+    })();
+    </script>
   </body>
 </html>
