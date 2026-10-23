@@ -617,13 +617,19 @@
       ].join('\n');
       document.head.appendChild(style);
 
-      /* 从 label 节点向上爬，找到「有兄弟节点的字段块」 */
+      /* 先定位字段容器（含 ≥3 个子节点的最小祖先），
+         再取其下「包含该 label 的直接子块」作为字段块 */
       function findBlock(labelEl) {
-        var el = labelEl;
-        while (el && el.parentElement) {
-          var p = el.parentElement;
-          if (p.children.length > 1) return el;
-          el = p;
+        var container = null, cur = labelEl.parentElement;
+        while (cur && cur !== document.body) {
+          if (cur.children.length >= 3) { container = cur; break; }
+          cur = cur.parentElement;
+        }
+        if (!container) return labelEl.parentElement;
+        var n = container.firstElementChild;
+        while (n) {
+          if (n.contains(labelEl)) return n;
+          n = n.nextElementSibling;
         }
         return labelEl.parentElement;
       }
