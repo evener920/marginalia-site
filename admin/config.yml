@@ -140,7 +140,7 @@ collections:
       preview: false
     fields:
       - { name: layout, label: "布局", widget: hidden, default: song }
-      - { name: title, label: "歌名", widget: string }
+      - { name: title, label: "标题", widget: string }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: author, label: "演唱者 / 词曲作者（可留空）", widget: string, required: false }
       - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
