@@ -10,10 +10,20 @@ permissions:
 
 concurrency:
   group: "cf-pages"
-  cancel-in-progress: true
+  # false = 新推送排队而非取消在途 run。
+  # 关键：采集器 bot 会频繁推「自动回填抖音封面」提交，若这里为 true，
+  # 它会把用户正在跑的发布取消重来（concurrency 在工作流级、早于 job 的 if 生效），
+  # 导致用户发布反复重来、迟迟不上线（「一直都在成功的路上」）。
+  # 配合 build 的 if 跳过 bot 提交，bot run 退化为几秒空跑，既不占构建也不取消用户发布。
+  cancel-in-progress: false
 
 jobs:
   build:
+    # 采集器 bot 的「自动回填抖音封面」提交只改缩略图/封面，无需即时上线，
+    # 跳过整条流水线——既省 CI，也避免它把用户正在跑的部署 cancel 掉（根因：
+    # concurrency.cancel-in-progress 会取消在途 run，导致用户发布反复重来、迟迟不上线）。
+    # 封面会在用户下一次正常发布时随整站一并部署。
+    if: ${{ !contains(github.event.head_commit.message, '自动回填') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
