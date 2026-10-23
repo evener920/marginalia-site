@@ -8,21 +8,22 @@ on:
 permissions:
   contents: read
 
-# 故意不设置 concurrency：
-# 采集器 bot 会频繁推「自动回填抖音封面」提交。若设 concurrency，无论 cancel-in-progress
-# 为 true 还是 false 都会坑用户发布——true 会直接取消在途的发布；false 下 bot 的（更新）
-# run 会 supersede 抢占用户的 run，导致用户部署被跳过。去掉 concurrency 后用户发布独立
-# 跑完、永不被 bot 干扰；bot 提交靠下方 build 的 if 跳过构建，只需几秒空跑收场。
+# 单 job：build + deploy 同跑在一个 runner 上，省掉「上传 artifact → 第二个 runner 冷启动 → 下载 artifact」
+# 这段纯搬运（旧版拆成 build/deploy 两个 job），实测每次白花 ~15–25s + 第二次 runner 排队风险。
+# 没配 CF 凭证时 deploy 步骤自动跳过，build 仍跑通充当构建校验。
+#
+# 说明：未设 concurrency。采集器 bot 的「自动回填抖音封面」提交只改缩略图/封面，无需即时上线，
+# 靠下方 if 跳过整条流水线（空跑几秒收场）；封面会在用户下一次正常发布时随整站一并部署。
+# 不设 concurrency 是为了避免 bot 的 run 把用户在途发布 cancel / supersede 掉，导致发布迟迟不上线。
 
 jobs:
-  build:
-    # 采集器 bot 的「自动回填抖音封面」提交只改缩略图/封面，无需即时上线，
-    # 跳过整条流水线——既省 CI，也避免它把用户正在跑的部署 cancel 掉（根因：
-    # concurrency.cancel-in-progress 会取消在途 run，导致用户发布反复重来、迟迟不上线）。
-    # 封面会在用户下一次正常发布时随整站一并部署。
+  build-deploy:
+    # 采集器 bot 的「自动回填抖音封面」提交只改缩略图/封面，无需即时上线，跳过整条流水线。
     if: ${{ !contains(github.event.head_commit.message, '自动回填') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,29 +37,6 @@ jobs:
         run: bundle exec jekyll build --destination _site
         env:
           JEKYLL_ENV: production
-
-      - name: Upload _site artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: _site
-          if-no-files-found: error
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # 没配 CF 凭证时整个 deploy 阶段跳过；上面的 build 仍会跑通，充当构建校验。
-    # （job/step 的 if 不能用 secrets 上下文，故用 env 间接判断。）
-    env:
-      HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-    steps:
-      - name: Download built site
-        if: ${{ env.HAS_CF == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: site
-          path: _site
 
       - name: Deploy to Cloudflare Pages
         if: ${{ env.HAS_CF == 'true' }}
