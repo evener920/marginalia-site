@@ -32,7 +32,7 @@ collections:
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
     # 列表页每行显示「标题 + 发布日期」（date 是 front matter 里的字段）
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
@@ -51,7 +51,7 @@ collections:
     folder: "_videos"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
@@ -73,7 +73,7 @@ collections:
     folder: "_docs"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
@@ -90,7 +90,7 @@ collections:
     folder: "_shujian"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
@@ -110,7 +110,7 @@ collections:
     folder: "_poetry"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
@@ -135,7 +135,7 @@ collections:
     folder: "_songs"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
-    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
     editor:
       preview: false
     fields:
