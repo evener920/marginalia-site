@@ -26,6 +26,16 @@
           configurable: true
         });
       } catch (e) { /* 老浏览器忽略 */ }
+      /* 站内切换/返回时的「未保存确认」confirm 弹窗（Decap 路由 blocker
+         走 window.confirm）：只对离开类确认自动放行，删除文件、加载
+         本地备份等其他确认保持原生弹窗，避免误删。 */
+      var origConfirm = window.confirm;
+      window.confirm = function (msg) {
+        try {
+          if (typeof msg === 'string' && /离开|leave/i.test(msg)) return true;
+        } catch (e) { /* 忽略 */ }
+        return origConfirm.apply(window, arguments);
+      };
     })();
     window.CMS_MANUAL_INIT = true;</script>
     <script src="https://unpkg.com/decap-cms@3.17.1/dist/decap-cms.js"></script>
