@@ -102,3 +102,53 @@ collections:
       - { name: audio_url, label: "音频直链（mp3/ogg）", widget: string, required: false, hint: "填音频的公开直链（如 R2 桶里的 mp3/ogg），页面出现播放器，文件不进 git" }
       - { name: cover, label: "书影 / 封面图", widget: image, required: false }
       - { name: body, label: "正文（笺注内容）", widget: markdown }
+
+  # ============ 诗词：标题 + 视频入口 + 音频入口（全套） ============
+  - name: "poetry"
+    label: "诗词"
+    label_singular: "一首诗词"
+    folder: "_poetry"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: poetry }
+      - { name: title, label: "标题", widget: string }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: author, label: "作者（可留空）", widget: string, required: false }
+      - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "分类标签，每行一个" }
+      - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "视频来源三选一：填 BV 号嵌 B 站播放器，如 BV1xx411c7mD" }
+      - { name: video_url, label: "R2 视频 mp4 直链", widget: string, required: false, hint: "视频来源三选一：填 R2 里 mp4 的公开链接" }
+      - { name: douyin_id, label: "抖音视频", widget: string, required: false, hint: "视频来源三选一：粘贴抖音分享短链（v.douyin.com/...）或 video/ 后的数字 ID" }
+      - { name: douyin_type, label: "抖音作品类型", widget: select, required: false, options: [{label: "视频", value: "video"}, {label: "图文（note）", value: "note"}] }
+      - { name: audio_url, label: "音频直链（mp3/ogg）", widget: string, required: false, hint: "填音频的公开直链（如 R2 桶里的 mp3/ogg），页面出现播放器" }
+      - { name: cover, label: "封面图 / 书影（可选）", widget: image, required: false }
+      - { name: body, label: "正文（笺注 / 赏析，可留空）", widget: markdown, required: false }
+
+  # ============ 歌本：标题 + 视频入口 + 音频入口（全套） ============
+  - name: "songs"
+    label: "歌本"
+    label_singular: "一首歌"
+    folder: "_songs"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: song }
+      - { name: title, label: "歌名", widget: string }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: author, label: "演唱者 / 词曲作者（可留空）", widget: string, required: false }
+      - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "分类标签，每行一个" }
+      - { name: bvid, label: "B站 BV 号", widget: string, required: false, hint: "视频来源三选一：填 BV 号嵌 B 站播放器" }
+      - { name: video_url, label: "R2 视频 mp4 直链", widget: string, required: false, hint: "视频来源三选一：填 R2 里 mp4 的公开链接" }
+      - { name: douyin_id, label: "抖音视频", widget: string, required: false, hint: "视频来源三选一：粘贴抖音分享短链或 video/ 后的数字 ID" }
+      - { name: douyin_type, label: "抖音作品类型", widget: select, required: false, options: [{label: "视频", value: "video"}, {label: "图文（note）", value: "note"}] }
+      - { name: audio_url, label: "音频直链（mp3/ogg）", widget: string, required: false, hint: "填音频的公开直链（如 R2 桶里的 mp3/ogg），页面出现播放器" }
+      - { name: cover, label: "封面图 / 专辑图（可选）", widget: image, required: false }
+      - { name: body, label: "正文（歌词 / 赏析，可留空）", widget: markdown, required: false }

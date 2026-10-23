@@ -1,0 +1,140 @@
+{% comment %}============================================================
+  诗词 / 歌本 共用媒体块
+  - 视频播放器：与 _layouts/video.html 同逻辑（B站 / 抖音 / R2 直链 / Stream）
+  - 音频播放器：与 _layouts/shujian.html 同逻辑（R2 audio 直链）
+  调用方需把此 include 放在 <article class="media-page"> 内，page 变量由 Jekyll 提供。
+  Liquid 里空字符串是“真值”，所以每个字段都用 `!= ""` 兜底，避免空字段误触发播放器。
+  ============================================================{% endcomment %}
+
+{% comment %}—— 归一化 douyin_id：数字 / /video/<id> / /note/<id> / iesdouyin/share/video/<id> → 数字；短链若无数字则留空降级外链 ——{% endcomment %}
+{% assign douyin_raw = page.douyin_id | strip %}
+{% assign douyin_vid = "" %}
+{% assign douyin_is_note = false %}
+{% if page.douyin_type == 'note' %}{% assign douyin_is_note = true %}{% endif %}
+{% if douyin_raw contains "/note/" %}
+  {% assign douyin_is_note = true %}
+  {% assign _p = douyin_raw | split: "/note/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+{% elsif douyin_raw contains "/video/" %}
+  {% assign _p = douyin_raw | split: "/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+{% elsif douyin_raw contains "/share/video/" %}
+  {% assign _p = douyin_raw | split: "/share/video/" %}{% assign douyin_vid = _p[1] | split: "/" | first %}
+{% elsif douyin_raw contains "douyin" %}
+  {% comment %}短链：依赖构建期插件解析；解析失败则降级为下方外链{% endcomment %}
+{% else %}
+  {% assign douyin_vid = douyin_raw %}
+{% endif %}
+{% if douyin_is_note and douyin_vid == "" %}{% assign douyin_is_note = false %}{% endif %}
+
+{% comment %}—— 是否存在任一视频源（空字符串在 Liquid 里是“真值”，故逐项 != "" 判断）——{% endcomment %}
+{% assign _has_video = false %}
+{% if page.stream_id and page.stream_id != "" %}{% assign _has_video = true %}
+{% elsif page.bvid and page.bvid != "" %}{% assign _has_video = true %}
+{% elsif douyin_vid != "" %}{% assign _has_video = true %}
+{% elsif page.video_url and page.video_url != "" %}{% assign _has_video = true %}
+{% elsif page.video and page.video != "" %}{% assign _has_video = true %}
+{% endif %}
+
+{% if _has_video %}
+<section class="media-media">
+  <div class="video-player{% if page.stream_id and page.stream_id != "" %} video-player--stream{% elsif page.bvid and page.bvid != "" %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid != "" %} video-player--douyin{% elsif (page.video_url and page.video_url != "") or (page.video and page.video != "") %} video-player--file{% endif %}">
+    {% if page.stream_id and page.stream_id != "" %}
+      <stream src="{{ page.stream_id }}" controls></stream>
+    {% elsif page.bvid and page.bvid != "" %}
+      <iframe
+        src="//player.bilibili.com/player.html?bvid={{ page.bvid }}&autoplay=0&high_quality=1&danmaku=0"
+        scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer" loading="lazy"></iframe>
+    {% elsif douyin_vid != "" and douyin_is_note == false %}
+      <iframe
+        src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0"
+        scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer" loading="lazy"></iframe>
+    {% elsif douyin_vid != "" and douyin_is_note %}
+      <div class="video-note-card">
+        <p class="video-note-icon">📄</p>
+        <p class="video-note-text">这是一条抖音<strong>图文作品</strong>，抖音开放播放器不支持内嵌图文，请在抖音内查看。</p>
+      </div>
+    {% elsif page.video_url and page.video_url != "" %}
+      <video controls preload="metadata" playsinline{% if page.poster %} poster="{{ page.poster | relative_url }}"{% endif %}>
+        <source src="{{ page.video_url }}" type="video/mp4">你的浏览器不支持视频标签。
+      </video>
+    {% elsif page.video and page.video != "" %}
+      <video controls preload="metadata" playsinline{% if page.poster %} poster="{{ page.poster | relative_url }}"{% endif %}>
+        <source src="{{ page.video | relative_url }}" type="video/mp4">你的浏览器不支持视频标签。
+      </video>
+    {% endif %}
+  </div>
+
+  {% if page.stream_id and page.stream_id != "" %}
+    <p class="video-bili-link">视频由 Cloudflare Stream 托管 · <a href="https://cloudflarestream.com/{{ page.stream_id }}/watch" target="_blank" rel="noopener">在 Stream 打开</a></p>
+  {% elsif page.bvid and page.bvid != "" %}
+    <p class="video-bili-link">视频托管于 B 站 · <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a></p>
+  {% elsif douyin_vid != "" %}
+    <p class="video-bili-link">{% if douyin_is_note %}图文作品托管于 抖音 ·{% else %}视频托管于 抖音 ·{% endif %}<a href="https://www.douyin.com/{% if douyin_is_note %}note{% else %}video{% endif %}/{{ douyin_vid }}" target="_blank" rel="noopener">在抖音打开</a></p>
+  {% elsif page.douyin_id and page.douyin_id != "" %}
+    <p class="video-bili-link">视频托管于 抖音 · <a href="{{ page.douyin_id }}" target="_blank" rel="noopener">在抖音打开（外链）</a></p>
+  {% elsif page.video_url and page.video_url != "" %}
+    <p class="video-bili-link">视频托管于 Cloudflare R2 · <a href="{{ page.video_url }}" target="_blank" rel="noopener">打开原视频</a></p>
+  {% endif %}
+  {% if page.stream_id and page.stream_id != "" %}<script src="https://embed.cloudflarestream.com/embed/sdk.latest.js" defer></script>{% endif %}
+</section>
+{% endif %}
+
+{% if page.audio_url and page.audio_url != "" %}
+<section class="media-media">
+  <div class="shujian-audio">
+    <p class="shujian-audio-label">🎧 收听</p>
+    <audio class="shujian-player" controls preload="metadata" src="{{ page.audio_url }}"></audio>
+    <p class="shujian-audio-link">音频托管于 Cloudflare R2 · <a href="{{ page.audio_url }}" target="_blank" rel="noopener">下载 / 打开原音频</a></p>
+  </div>
+</section>
+{% endif %}
+
+<style>
+  .media-page { max-width: var(--wide); }
+  .media-header { border-bottom: 1px solid var(--rule); padding-bottom: 1.4rem; margin-bottom: 1.8rem; }
+  .media-kicker {
+    color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase;
+    font-size: 0.78rem; margin: 0 0 0.6rem; font-family: var(--sans);
+  }
+  .media-header h1 {
+    font-family: var(--serif); font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+    line-height: 1.15; margin: 0 0 0.8rem; letter-spacing: -0.005em;
+  }
+  .media-lede { font-size: 1.05rem; line-height: 1.65; color: var(--ink-soft); margin: 0 0 0.8rem; max-width: 60ch; }
+
+  .media-media { margin-bottom: 1.8rem; }
+  .video-player {
+    position: relative; aspect-ratio: 16 / 9; background: var(--bg-tint);
+    padding: 14px; border: 1px solid var(--rule); border-radius: 3px;
+    box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08); margin-bottom: 0;
+  }
+  .video-player video,
+  .video-player iframe { width: 100%; height: 100%; display: block; border-radius: 2px; background: var(--bg-tint); }
+  .video-player--bili iframe { border: 0; }
+  .video-player--douyin { aspect-ratio: 9 / 16; max-width: 380px; margin-left: auto; margin-right: auto; }
+  .video-player--douyin iframe { border: 0; }
+  .video-player--note { aspect-ratio: auto; min-height: 220px; display: flex; align-items: center; justify-content: center; }
+  .video-note-card { text-align: center; padding: 1.6rem 1rem; max-width: 40ch; }
+  .video-note-icon { font-size: 2.2rem; margin: 0 0 0.6rem; }
+  .video-note-text { font-size: 0.98rem; line-height: 1.7; color: var(--ink-soft); font-family: var(--sans); margin: 0; }
+  .video-note-text strong { color: var(--ink); }
+  .video-player--stream stream,
+  .video-player stream { width: 100%; height: 100%; display: block; border-radius: 2px; background: #000; }
+  .video-bili-link { margin: 0.6rem 0 0; font-size: 0.85rem; color: var(--muted); font-family: var(--sans); text-align: right; }
+  .video-bili-link a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed rgba(139, 46, 42, 0.35); }
+  .video-bili-link a:hover { border-bottom-style: solid; }
+
+  .shujian-audio { margin: 0; padding: 1.2rem 1.4rem; background: var(--bg-tint); border: 1px solid var(--rule); border-radius: 3px; }
+  .shujian-audio-label { margin: 0 0 0.6rem; font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-family: var(--sans); }
+  .shujian-player { width: 100%; display: block; }
+  .shujian-audio-link { margin: 0.7rem 0 0; font-size: 0.82rem; color: var(--muted); font-family: var(--sans); text-align: right; }
+  .shujian-audio-link a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed rgba(139, 46, 42, 0.35); }
+  .shujian-audio-link a:hover { border-bottom-style: solid; }
+
+  .media-cover { max-width: 320px; margin: 0 0 2rem; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08); }
+  .media-cover img { width: 100%; display: block; }
+
+  .media-body { font-size: 1.02rem; line-height: 1.75; }
+  .media-body h2 { font-family: var(--serif); font-size: 1.4rem; margin: 2.2rem 0 0.9rem; padding-left: 0.6rem; border-left: 3px solid var(--accent); }
+  .media-body h3 { font-family: var(--serif); font-size: 1.15rem; margin: 1.6rem 0 0.5rem; }
+  .media-body blockquote { border-left: 3px solid var(--accent-soft); padding-left: 1rem; margin: 1.2rem 0; color: var(--ink-soft); font-style: italic; }
+</style>

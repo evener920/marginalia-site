@@ -61,6 +61,12 @@ collections:
   shujian:
     output: true
     permalink: /shujian/:name/
+  poetry:
+    output: true
+    permalink: /poetry/:name/
+  songs:
+    output: true
+    permalink: /songs/:name/
 
 exclude:
   - README.md
@@ -90,6 +96,16 @@ defaults:
       type: pages
     values:
       layout: page
+  - scope:
+      path: ""
+      type: poetry
+    values:
+      layout: poetry
+  - scope:
+      path: ""
+      type: songs
+    values:
+      layout: song
 
 # 导航栏：想加/删/改栏目，只改这里（link 是站内路径，name 是显示文字）
 nav:
@@ -103,6 +119,10 @@ nav:
     link: /docs/
   - name: 书笺
     link: /shujian/
+  - name: 诗词
+    link: /poetry/
+  - name: 歌本
+    link: /songs/
   - name: 关于
     link: /about/
   - name: 归档
@@ -126,3 +146,11 @@ streams:
     link: /shujian/
     image: /assets/img/site/emblem-shujian.jpg
     desc: 读书笺注 · 你写下的书边批语。
+  - title: 诗词
+    link: /poetry/
+    image: /assets/img/site/emblem-poetry.svg
+    desc: 古典与现代诗词，配上诵读与讲解的视频、音频。
+  - title: 歌本
+    link: /songs/
+    image: /assets/img/site/emblem-songs.svg
+    desc: 一首首歌，配上原唱视频与音频，随时听、随时看。

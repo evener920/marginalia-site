@@ -1,0 +1,33 @@
+---
+layout: default
+---
+<div class="wrap">
+  <article class="page media-page song-page">
+    <header class="page-header media-header">
+      <p class="kicker media-kicker">🎵 歌本</p>
+      <h1>{{ page.title }}</h1>
+      {% if page.description %}<p class="media-lede">{{ page.description }}</p>{% endif %}
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.author %}<span class="dot">·</span><span>{{ page.author }}</span>{% endif %}
+      </p>
+    </header>
+
+    {% include media_block.html %}
+
+    {% if page.cover %}
+    <div class="media-cover">
+      <img src="{{ page.cover | relative_url }}" alt="" loading="lazy">
+    </div>
+    {% endif %}
+
+    <div class="page-body media-body">
+      {{ content }}
+    </div>
+
+    <footer class="post-footer">
+      {% include reactions.html slug=page.url title=page.title url=page.url %}
+      <p><a class="back" href="{{ '/songs/' | relative_url }}">← 所有歌曲</a></p>
+    </footer>
+  </article>
+</div>
