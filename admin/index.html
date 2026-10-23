@@ -480,12 +480,15 @@
     </script>
     <script>
     /* ============================================================
-       编辑器「图片」组件卡片重绘（v2，配合上方同名覆盖组件）
+       编辑器「图片」组件卡片重绘（v3，配合上方同名覆盖组件）
        背景：Decap 3.x 类名是哈希（无稳定 nc-* class），纯 CSS 无法
        定位组件卡片 → 用 JS 打标，CSS 只认自己的标记类。
-       - 卡片根：从图片控件按钮向上找最近的 [data-slate-void="true"]
-       - 徽章（IMAGE / ALT TEXT / TITLE / 图片）：叶子节点文本匹配 → 隐藏
-       - 按钮：按文案加类（墨绿 soft / 朱砂 danger），重绘为小胶囊
+       v3 关键变化（修"选好图后内盒嵌套、按钮竖排、大空白"）：
+       - 卡内所有中间包装 div/span 一律 display:contents 打平，
+         嵌套灰框、棋盘格底、内边距全部消失
+       - 卡片本体改横向 flex：缩略图在左，按钮横排跟随其后
+       - 左上角折叠箭头（无文字的图标按钮）隐藏
+       - 按钮：按文案加类（墨绿 soft / 朱砂 danger），小胶囊横排
        ============================================================ */
     (function () {
       if (window.__mgImgCard) return;
@@ -493,19 +496,24 @@
 
       var style = document.createElement('style');
       style.textContent = [
-        '/* 图片组件卡片：宣纸底紧凑卡 */',
-        '[data-slate-editor="true"] .mgx-imgcard{background:#fbfaf6;border:1px solid #e5e0d4;border-radius:10px;padding:10px 12px;margin:8px 0;box-shadow:0 1px 3px rgba(60,50,30,.06);}',
-        '/* 卡内去灰底（清掉默认的灰头、棋盘格底） */',
-        '.mgx-imgcard div{background-color:transparent!important;}',
+        '/* 图片组件卡片：宣纸底紧凑卡（横向 flex 布局） */',
+        '.mgx-imgcard{background:#fbfaf6;border:1px solid #e5e0d4;border-radius:10px;padding:12px 14px;margin:8px 0;box-shadow:0 1px 3px rgba(60,50,30,.06);display:flex!important;align-items:center!important;gap:14px!important;flex-wrap:wrap!important;}',
+        '/* v3 核心：卡内中间包装层全部打平（display:contents），',
+        '   嵌套灰框/棋盘格底/内边距一并消失，缩略图与按钮成为卡片直接子项 */',
+        '.mgx-imgcard div,.mgx-imgcard span{display:contents!important;background:transparent!important;}',
         '/* 冗余徽章（IMAGE/ALT TEXT/TITLE/图片）隐藏 */',
         '.mgx-imgcard .mgx-chip{display:none!important;}',
-        '/* 图片预览：圆角细边 */',
-        '.mgx-imgcard img{border-radius:8px;border:1px solid #e8e3d8;max-width:100%;}',
-        '/* 按钮统一小胶囊 */',
-        '.mgx-imgcard button{font-size:12px!important;padding:3px 12px!important;border-radius:999px!important;border:1px solid #d8d2c4!important;background:#fff!important;cursor:pointer;}',
+        '/* 折叠箭头等无文字图标按钮隐藏 */',
+        '.mgx-imgcard .mgx-collapse{display:none!important;}',
+        '/* 缩略图：定高圆角细边，不再撑满整行 */',
+        '.mgx-imgcard img{flex:0 0 auto;max-height:128px;max-width:240px;width:auto;object-fit:cover;border-radius:8px;border:1px solid #e8e3d8;box-shadow:0 1px 3px rgba(60,50,30,.08);}',
+        '/* 按钮统一小胶囊，横排跟随缩略图 */',
+        '.mgx-imgcard button{flex:0 0 auto;font-size:12px!important;padding:4px 14px!important;border-radius:999px!important;border:1px solid #d8d2c4!important;background:#fff!important;cursor:pointer;}',
         '.mgx-imgcard button.mgx-btn-soft{color:#3f5a4c!important;border-color:#c7d3ca!important;background:#f3f7f4!important;}',
         '.mgx-imgcard button.mgx-btn-danger{color:#a5462f!important;border-color:#e2c8bc!important;background:#fdf6f2!important;}',
-        '.mgx-imgcard button:hover{filter:brightness(.96);}'
+        '.mgx-imgcard button:hover{filter:brightness(.96);}',
+        '/* 未选图时的空态：文案按钮同样横排，不再撑高 */',
+        '.mgx-imgcard{min-height:0!important;}'
       ].join('\n');
       document.head.appendChild(style);
 
@@ -537,6 +545,8 @@
           var t = (bs[k].textContent || '').trim();
           if (/remove|移除|删除/i.test(t)) bs[k].classList.add('mgx-btn-danger');
           else if (/choose|replace|选择|替换|替代/i.test(t)) bs[k].classList.add('mgx-btn-soft');
+          /* 无文字的图标按钮（折叠箭头等）→ 隐藏 */
+          else if (!t && bs[k].querySelector('svg, svg *')) bs[k].classList.add('mgx-collapse');
         }
       }
 
