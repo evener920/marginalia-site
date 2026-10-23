@@ -1,0 +1,4 @@
+# Decap 后台：config.yml / index.html 改动频繁，禁用缓存，
+# 否则 Cloudflare 边缘会一直返回旧版，后台改了也看不出变化。
+/admin/*
+  Cache-Control: no-cache

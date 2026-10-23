@@ -49,6 +49,12 @@ plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
 
+# 把 Cloudflare Pages 的 _headers / _redirects 等下划线文件带进构建产物
+# （Jekyll 默认忽略以下划线开头的文件，不加 include 就不会被复制到 _site）
+include:
+  - _headers
+  - _redirects
+
 collections:
   games:
     output: false
