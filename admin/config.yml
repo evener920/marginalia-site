@@ -19,7 +19,9 @@ publish_mode: simple
 media_folder: "assets/img/uploads"
 public_folder: "/assets/img/uploads"
 
-locale: "zh"
+# 注意：Decap 3.x 注册的语言包键是 zh_Hans / zh_Hant，没有 "zh"。
+# 写 "zh" 会静默回退英文（之前整个后台英文就是这个原因）。
+locale: "zh_Hans"
 
 collections:
   # ============ 文章：只填 标题/标签/正文，其余自动 ============
@@ -29,6 +31,8 @@ collections:
     folder: "_posts"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
+    # 列表页每行显示「标题 + 发布日期」（date 是 front matter 里的字段）
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
     editor:
       preview: false
     fields:
@@ -47,6 +51,7 @@ collections:
     folder: "_videos"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
     editor:
       preview: false
     fields:
@@ -68,6 +73,7 @@ collections:
     folder: "_docs"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
     editor:
       preview: false
     fields:
@@ -84,6 +90,7 @@ collections:
     folder: "_shujian"
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     create: true
+    summary: "{{title}}  ·  {{date | date('YYYY-MM-DD HH:mm')}}"
     editor:
       preview: false
     fields:

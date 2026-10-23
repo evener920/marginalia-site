@@ -384,7 +384,7 @@
         try {
           var t = e.target && e.target.closest ? e.target.closest('button, [role="menuitem"], li, a') : null;
           if (!t || inModal(t)) return;
-          if (textOf(t) !== '图片链接') return;
+          if (textOf(t) !== '图片链接' && textOf(t) !== '图片') return;
           e.preventDefault();
           e.stopPropagation();
           openDlg(t);
@@ -510,7 +510,8 @@
       document.head.appendChild(style);
 
       var CHIP_RE = /^(image|alt text|title|图片|图片链接)$/i;
-      var BTN_RE = /^(choose different image|choose an image|replace with url|remove image|remove all images)$/i;
+      /* 按钮文案：en + zh_Hans（config 已切 zh_Hans，按钮变中文） */
+      var BTN_RE = /^(choose different image|choose an image|replace with url|remove image|remove all images|选择其他图片|选择图片|从 URL 插入|用 URL 替代|移除图片|移除所有图片)$/i;
 
       function markCard(btn) {
         var el = btn, i;
@@ -535,7 +536,7 @@
         for (var k = 0; k < bs.length; k++) {
           var t = (bs[k].textContent || '').trim();
           if (/remove|移除|删除/i.test(t)) bs[k].classList.add('mgx-btn-danger');
-          else if (/choose|replace|选择|替换/i.test(t)) bs[k].classList.add('mgx-btn-soft');
+          else if (/choose|replace|选择|替换|替代/i.test(t)) bs[k].classList.add('mgx-btn-soft');
         }
       }
 
