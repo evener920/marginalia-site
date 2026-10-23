@@ -8,7 +8,26 @@
   </head>
   <body>
     <!-- Decap CMS：版本锁定 3.17.1（避免 ^ 漂移导致编辑器行为变化）；CMS_MANUAL_INIT = 先注册自定义组件再手动 init -->
-    <script>window.CMS_MANUAL_INIT = true;</script>
+    <script>
+    /* 关闭「离开页面」确认弹窗：Decap 编辑器在有未保存改动时注册
+       window.addEventListener('beforeunload', exitBlocker)，浏览器因此弹
+       「你确定要离开此页面吗」。此处赶在 Decap bundle 加载前打补丁：
+       吞掉对 window 的 beforeunload/unload 监听注册，并挡掉直接赋值。 */
+    (function () {
+      var orig = EventTarget.prototype.addEventListener;
+      EventTarget.prototype.addEventListener = function (type, fn, opts) {
+        if (this === window && (type === 'beforeunload' || type === 'unload')) return;
+        return orig.call(this, type, fn, opts);
+      };
+      try {
+        Object.defineProperty(window, 'onbeforeunload', {
+          set: function () {},
+          get: function () { return null; },
+          configurable: true
+        });
+      } catch (e) { /* 老浏览器忽略 */ }
+    })();
+    window.CMS_MANUAL_INIT = true;</script>
     <script src="https://unpkg.com/decap-cms@3.17.1/dist/decap-cms.js"></script>
     <script>
     /* ============================================================
