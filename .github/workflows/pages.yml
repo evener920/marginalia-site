@@ -8,14 +8,11 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: "cf-pages"
-  # false = 新推送排队而非取消在途 run。
-  # 关键：采集器 bot 会频繁推「自动回填抖音封面」提交，若这里为 true，
-  # 它会把用户正在跑的发布取消重来（concurrency 在工作流级、早于 job 的 if 生效），
-  # 导致用户发布反复重来、迟迟不上线（「一直都在成功的路上」）。
-  # 配合 build 的 if 跳过 bot 提交，bot run 退化为几秒空跑，既不占构建也不取消用户发布。
-  cancel-in-progress: false
+# 故意不设置 concurrency：
+# 采集器 bot 会频繁推「自动回填抖音封面」提交。若设 concurrency，无论 cancel-in-progress
+# 为 true 还是 false 都会坑用户发布——true 会直接取消在途的发布；false 下 bot 的（更新）
+# run 会 supersede 抢占用户的 run，导致用户部署被跳过。去掉 concurrency 后用户发布独立
+# 跑完、永不被 bot 干扰；bot 提交靠下方 build 的 if 跳过构建，只需几秒空跑收场。
 
 jobs:
   build:
