@@ -784,5 +784,204 @@
         }).observe(document.body, { childList: true, subtree: true });
       })();
     </script>
+    <script>
+    /* ============================================================
+       集合列表分页 v3：Decap 列表是「每次加载 20 条 + 滚动哨兵
+       （react-waypoint）续载」的懒加载，无配置级分页。此脚本做
+       客户端分页（每页 20，与后端分块对齐）：
+       - 锚点：条目链接 a[href*="/entries/"]，卡片取最近 <li>；
+         列表容器末尾的非卡片空元素 = 加载哨兵（耗尽后 React 移除）
+       - 翻页：点「下一页」若条目未加载够，在 body 上临时垫高保证
+         可滚，滚动哨兵触发 Decap 原生续载，载够后切片并回顶
+       - **翻页条固定挂在 body 底部（React 根 #nc-root 之外）**：
+         v2 复刻台实测把翻页条插进列表容器会让 React 对账崩溃
+         （NotFoundError: removeChild），任何节点都不得插进 React 树
+       - 幂等：隐藏数=预期 且 状态串一致 → 零 DOM 写；加载期间跳过
+       - 哨兵消失即末页，显示「共 N 条」；页码按集合记忆
+       ============================================================ */
+    window.addEventListener('load', function () {
+      try {
+        var PAGE_SIZE = (window.CMS_PAGE_SIZE | 0) || 20;
+        var cur = { coll: null, page: 0 };
+        var loading = false;
+        var bar = null;
+
+        function getColl() {
+          var m = (location.hash || '').match(/#\/collections\/([^\/]+)/);
+          return m ? decodeURIComponent(m[1]) : null;
+        }
+        function collect() {
+          var cards = [], seen = [];
+          if (!getColl()) return cards;
+          var links = document.querySelectorAll('a[href*="/entries/"]');
+          for (var i = 0; i < links.length; i++) {
+            var card = links[i].closest ? links[i].closest('li') : null;
+            if (!card) card = links[i].parentElement;
+            if (card && seen.indexOf(card) < 0) { seen.push(card); cards.push(card); }
+          }
+          return cards;
+        }
+        function hasMoreNow(cards) {
+          var cont = cards.length ? cards[0].parentElement : null;
+          if (!cont) return false;
+          var last = cont.lastElementChild;
+          return !!(last && cards.indexOf(last) < 0 &&
+            !(last.querySelector && last.querySelector('a[href*="/entries/"]')));
+        }
+        function removeSpacer() {
+          var sp = document.querySelector('[data-mg-spacer]');
+          if (sp) sp.remove();
+        }
+        /* 垫高挂在 body（React 根之外），只给文档增加可滚高度 */
+        function addSpacer() {
+          removeSpacer();
+          var sp = document.createElement('div');
+          sp.setAttribute('data-mg-spacer', '1');
+          sp.style.cssText = 'height:' + Math.max(600, window.innerHeight) + 'px;';
+          document.body.appendChild(sp);
+        }
+        /* 滚动哨兵驱动 Decap 原生续载，直到条目数达标 / 哨兵消失 / 超时 */
+        function loadUntil(needed, done) {
+          var miss = 0, lastN = -1, waited = 0;
+          var timer = setInterval(function () {
+            waited += 350;
+            var cards = collect();
+            if (cards.length >= needed) return finish();
+            if (cards.length === lastN) {
+              miss++;
+              if (!hasMoreNow(cards)) return finish();               /* 哨兵没了 = 真没了 */
+              if (miss > 57 || waited > 20000) return finish();      /* 兜底 */
+            } else { miss = 0; lastN = cards.length; }
+            var cont = cards.length ? cards[0].parentElement : null;
+            if (cont) {
+              addSpacer();
+              var sentinel = cont.lastElementChild;
+              try { (sentinel || cont).scrollIntoView({ block: 'end' }); } catch (e) {}
+              try { window.dispatchEvent(new Event('scroll')); } catch (e) {}
+            }
+          }, 350);
+          function finish() {
+            clearInterval(timer);
+            removeSpacer();
+            done();
+          }
+        }
+        function mountBar() {
+          if (bar && document.contains(bar)) return bar;
+          bar = document.createElement('div');
+          bar.setAttribute('data-mg-pager', '1');
+          bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);'
+            + 'display:none;align-items:center;gap:10px;padding:8px 16px;'
+            + 'background:#fff;border:1px solid #dbdbdb;border-radius:10px;'
+            + 'box-shadow:0 2px 12px rgba(0,0,0,.12);z-index:9999;';
+          document.body.appendChild(bar);
+          return bar;
+        }
+
+        function mkBtn(txt, dis, fn) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = txt;
+          b.disabled = dis;
+          b.style.cssText = 'border:1px solid #dbdbdb;background:#fff;color:#313131;'
+            + 'border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer;'
+            + (dis ? 'opacity:.45;cursor:default;' : '');
+          b.onclick = fn;
+          return b;
+        }
+
+        function renderPager(more, pages, total) {
+          var b = mountBar();
+          b.innerHTML = '';
+          b.appendChild(mkBtn('\u2039 \u4e0a\u4e00\u9875', cur.page <= 0, function () {
+            if (loading) return;
+            cur.page--; apply(); window.scrollTo(0, 0);
+          }));
+          var info = document.createElement('span');
+          info.style.cssText = 'font-size:13px;color:#666;white-space:nowrap;';
+          info.textContent = more
+            ? '\u7b2c ' + (cur.page + 1) + ' \u9875 \u00b7 \u5df2\u8f7d ' + total + ' \u6761'
+            : '\u7b2c ' + (cur.page + 1) + ' / ' + pages + ' \u9875 \u00b7 \u5171 ' + total + ' \u6761';
+          b.appendChild(info);
+          var nextDis = !more && cur.page >= pages - 1;
+          var nb = mkBtn('\u4e0b\u4e00\u9875 \u203a', nextDis, function () {
+            if (loading) return;
+            var cards = collect();
+            var needed = (cur.page + 2) * PAGE_SIZE;
+            if (cards.length < needed && hasMoreNow(cards)) {
+              loading = true;
+              nb.disabled = true;
+              nb.style.opacity = '.45';
+              nb.textContent = '\u52a0\u8f7d\u4e2d\u2026';
+              loadUntil(needed, function () {
+                loading = false;
+                cur.page++;
+                apply();
+                window.scrollTo(0, 0);
+              });
+            } else {
+              cur.page++;
+              apply();
+              window.scrollTo(0, 0);
+            }
+          });
+          b.appendChild(nb);
+          b.style.display = 'flex';
+        }
+
+        function cleanup(cards) {
+          if (bar) bar.style.display = 'none';
+          removeSpacer();
+          for (var i = 0; i < cards.length; i++) {
+            if (cards[i].style.display !== '') cards[i].style.display = '';
+          }
+          cur.page = 0;
+        }
+
+        function apply() {
+          try {
+            if (loading) return;
+            var coll = getColl();
+            if (!coll) { cleanup(collect()); return; }
+            if (cur.coll !== coll) { cur.coll = coll; cur.page = 0; }
+            var cards = collect();
+            var total = cards.length;
+            if (total === 0) { cleanup(cards); return; }
+            var more = hasMoreNow(cards);
+            var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+            if (!more && cur.page > pages - 1) cur.page = pages - 1;
+            if (cur.page < 0) cur.page = 0;
+            if (!more && pages <= 1) { cleanup(cards); return; }
+
+            var from = cur.page * PAGE_SIZE;
+            var expectShown = Math.min(PAGE_SIZE, total - from);
+            var expectHidden = total - expectShown;
+            var hidden = 0;
+            for (var h = 0; h < total; h++) {
+              if (cards[h].style.display === 'none') hidden++;
+            }
+            var state = cur.page + '|' + (more ? 'm' : 'e') + '|' + total;
+            if (hidden === expectHidden && bar && document.contains(bar)
+                && bar.getAttribute('data-mg-state') === state && bar.style.display === 'flex') return; /* 已就位 */
+
+            for (var k = 0; k < total; k++) {
+              var want = (k >= from && k < from + PAGE_SIZE) ? '' : 'none';
+              if (cards[k].style.display !== want) cards[k].style.display = want;
+            }
+            renderPager(more, pages, total);          /* 先 mount（renderPager 内部保证 bar 在位） */
+            bar.setAttribute('data-mg-state', state);
+          } catch (e) { /* 静默 */ }
+        }
+
+        apply();
+        var scheduled = false;
+        new MutationObserver(function () {
+          if (scheduled) return;
+          scheduled = true;
+          setTimeout(function () { scheduled = false; apply(); }, 120);
+        }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+      } catch (e) { /* 静默 */ }
+    });
+    </script>
   </body>
 </html>
