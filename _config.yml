@@ -139,10 +139,10 @@ nav:
     link: /poetry/
   - name: 歌本
     link: /songs/
-  - name: 关于
-    link: /about/
   - name: 索引
     link: /archive/
+  - name: 关于
+    link: /about/
 
 # 首页「栏目」卡片区：想加/删/改首页栏目卡片，只改这里（image 可留空）
 streams:
