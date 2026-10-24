@@ -1079,5 +1079,71 @@
     } catch (e) { /* 静默 */ }
   })();
   </script>
+  <!-- 块10：粘贴消毒——富文本里的 <img> 会让 Decap 3.17.1 崩溃
+       根因（bundle+源码已核实）：粘贴 HTML 反序列化 IMG 分支生成 {type:"image", url}
+       而渲染器 kte 解构 e.element.data（undefined → TypeError）。
+       markdown 加载路径（remarkSlate.js）会正常包 data:{url,title,alt}，存量文章安全。
+       解法：capture 阶段拦截 paste，把 text/html 里的 <img> 替换为
+       Markdown 文本占位 ![alt](src)（javascript:/file: 等危险 src 直接删除），
+       编辑器不再生成坏节点；截图等真实图片文件走剪贴板 items 上传路径，不受影响。 -->
+  <script>
+  (function () {
+    try {
+      var toast = null, toastTimer = null;
+      function showToast(msg) {
+        try {
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);' +
+              'z-index:2147483647;background:#1f2937;color:#fff;padding:8px 14px;border-radius:8px;' +
+              'font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;' +
+              'box-shadow:0 4px 12px rgba(0,0,0,.25);transition:opacity .3s;pointer-events:none';
+            (document.body || document.documentElement).appendChild(toast);
+          }
+          toast.textContent = msg;
+          toast.style.opacity = '1';
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () { toast.style.opacity = '0'; }, 2600);
+        } catch (e) { /* 静默 */ }
+      }
+
+      function sanitizeHtml(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var imgs = Array.prototype.slice.call(doc.body.querySelectorAll('img'));
+        if (!imgs.length) return null;
+        var kept = 0;
+        imgs.forEach(function (img) {
+          try {
+            var src = (img.getAttribute('src') || '').trim();
+            var ok = /^https?:\/\//i.test(src) || /^\//.test(src);
+            var alt = (img.getAttribute('alt') || '').replace(/[\[\]]/g, '');
+            var ph = ok ? doc.createTextNode('![' + alt + '](' + src + ')') : null;
+            if (ph) { img.parentNode.replaceChild(ph, img); kept++; }
+            else { img.parentNode.removeChild(img); }
+          } catch (e) { try { img.remove(); } catch (e2) {} }
+        });
+        /* 即使全部被移除也要返回（用净化后的 HTML 覆盖剪贴板原始 HTML） */
+        return { html: doc.body.innerHTML, kept: kept, total: imgs.length };
+      }
+
+      document.addEventListener('paste', function (e) {
+        try {
+          var t = e.target;
+          if (!t || !t.closest || !t.closest('[data-slate-editor="true"]')) return;
+          var cd = e.clipboardData;
+          if (!cd) return;
+          var html = cd.getData && cd.getData('text/html');
+          if (!html) return; /* 纯文本 / 图片文件粘贴不干预 */
+          var res = sanitizeHtml(html);
+          if (!res) return;
+          cd.setData('text/html', res.html);
+          if (res.kept > 0) {
+            showToast('已将 ' + res.kept + ' 张粘贴图片转为 Markdown 占位（规避编辑器崩溃）');
+          }
+        } catch (e2) { /* 静默，不影响原生粘贴 */ }
+      }, true);
+    } catch (e) { /* 静默 */ }
+  })();
+  </script>
   </body>
 </html>
