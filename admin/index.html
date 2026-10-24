@@ -1145,5 +1145,212 @@
     } catch (e) { /* 静默 */ }
   })();
   </script>
+
+  <!-- 块11：批量删除——后台列表页没有多选/删除入口，这里加一个浮窗，
+       直接从 GitHub 仓库按集合列出条目，勾选后批量删文件（触发 Actions 重新部署）。
+       走 GitHub REST API（无需经 Decap 内部 DOM），比在列表上叠复选框更稳。 -->
+  <style>
+    #mg-bulk-btn{position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#fff;border:1px solid #d9dce3;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:7px 12px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#b03030;cursor:pointer;user-select:none}
+    #mg-bulk-btn:hover{background:#fbf2f2}
+    #mg-bulk-mask{position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.45);display:none}
+    #mg-bulk-mask.mg-show{display:block}
+    #mg-bulk{position:fixed;top:4vh;left:50%;transform:translateX(-50%);z-index:2147483647;width:min(760px,94vw);max-height:92vh;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:none;flex-direction:column;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a}
+    #mg-bulk.mg-show{display:flex}
+    #mg-bulk .mg-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #ececf0}
+    #mg-bulk .mg-head h3{margin:0;font-size:15px;font-weight:600}
+    #mg-bulk .mg-head .mg-close{margin-left:auto;cursor:pointer;border:none;background:none;font-size:20px;line-height:1;color:#888;padding:0 4px}
+    #mg-bulk .mg-head .mg-refresh{cursor:pointer;border:1px solid #d9dce3;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;color:#333}
+    #mg-bulk .mg-body{overflow:auto;padding:10px 18px 18px}
+    #mg-bulk .mg-coll{margin-top:14px}
+    #mg-bulk .mg-coll h4{margin:0 0 6px;font-size:13px;color:#555;display:flex;align-items:center;gap:8px}
+    #mg-bulk .mg-coll .mg-count{font-weight:400;color:#999}
+    #mg-bulk .mg-search{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d9dce3;border-radius:6px;font-size:12px;margin-bottom:6px}
+    #mg-bulk .mg-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px}
+    #mg-bulk .mg-row:hover{background:#f6f7f9}
+    #mg-bulk .mg-row input{margin:0}
+    #mg-bulk .mg-row .mg-fname{word-break:break-all;color:#222}
+    #mg-bulk .mg-empty{color:#999;font-size:12px;padding:4px 6px}
+    #mg-bulk .mg-foot{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid #ececf0}
+    #mg-bulk .mg-foot .mg-sel{color:#333;font-size:13px}
+    #mg-bulk .mg-foot button{cursor:pointer;border-radius:6px;padding:7px 14px;font-size:13px;border:1px solid transparent}
+    #mg-bulk .mg-foot .mg-del{margin-left:auto;background:#d23b3b;color:#fff;border-color:#d23b3b}
+    #mg-bulk .mg-foot .mg-del:disabled{background:#e6a3a3;cursor:not-allowed}
+    #mg-bulk .mg-foot .mg-cancel{background:#fff;border-color:#d9dce3;color:#333}
+    #mg-bulk .mg-msg{padding:0 18px 12px;color:#b03030;font-size:12px;min-height:0}
+  </style>
+  <button id="mg-bulk-btn" style="display:none">批量删除</button>
+  <div id="mg-bulk-mask"></div>
+  <div id="mg-bulk">
+    <div class="mg-head">
+      <h3>批量删除条目</h3>
+      <button class="mg-refresh" id="mg-bulk-refresh">刷新</button>
+      <button class="mg-close" id="mg-bulk-close">×</button>
+    </div>
+    <div class="mg-msg" id="mg-bulk-msg"></div>
+    <div class="mg-body" id="mg-bulk-body"></div>
+    <div class="mg-foot">
+      <span class="mg-sel" id="mg-bulk-sel">已选 0 项</span>
+      <button class="mg-cancel" id="mg-bulk-cancel">取消</button>
+      <button class="mg-del" id="mg-bulk-del" disabled>删除选中</button>
+    </div>
+  </div>
+  <script>
+  (function () {
+    try {
+      var REPO = 'evener920/marginalia-site';
+      var BRANCH = 'main';
+      var API = 'https://api.github.com/repos/' + REPO + '/contents/';
+      var btn = document.getElementById('mg-bulk-btn');
+      var mask = document.getElementById('mg-bulk-mask');
+      var panel = document.getElementById('mg-bulk');
+      var bodyEl = document.getElementById('mg-bulk-body');
+      var selEl = document.getElementById('mg-bulk-sel');
+      var delBtn = document.getElementById('mg-bulk-del');
+      var msgEl = document.getElementById('mg-bulk-msg');
+      var FALLBACK = { posts: '_posts', videos: '_videos', docs: '_docs', shujian: '_shujian', poetry: '_poetry', songs: '_songs' };
+
+      function showMsg(m) { msgEl.textContent = m || ''; }
+      function toast(msg) {
+        var t = document.createElement('div');
+        t.style.cssText = 'position:fixed;left:50%;bottom:60px;transform:translateX(-50%);z-index:2147483647;background:#1f2937;color:#fff;padding:8px 14px;border-radius:8px;font:13px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:90vw';
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(function () { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2600);
+        setTimeout(function () { try { t.remove(); } catch (e) {} }, 3000);
+      }
+      function getToken() {
+        var b = window.CMS && window.CMS.getBackend && window.CMS.getBackend();
+        if (!b) return Promise.reject(new Error('CMS 未就绪'));
+        return Promise.resolve(b.getToken ? b.getToken() : null);
+      }
+      function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+      function gh(path, opts) {
+        return getToken().then(function (tok) {
+          opts = opts || {};
+          opts.headers = Object.assign({ 'Accept': 'application/vnd.github+json' }, opts.headers || {});
+          if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
+          return fetch(API + path, opts);
+        });
+      }
+      function parseCollections() {
+        return fetch(new URL('config.yml', document.baseURI)).then(function (r) { return r.text(); })
+          .then(function (txt) {
+            var map = {}, m, re = /-\s*name:\s*["']?([\w-]+)["']?[\s\S]*?folder:\s*["']?([\w\/-]+)["']?/g;
+            while ((m = re.exec(txt))) map[m[1]] = m[2].replace(/^["']|["']$/g, '');
+            if (!Object.keys(map).length) map = FALLBACK;
+            return map;
+          }).catch(function () { return FALLBACK; });
+      }
+
+      var data = {}; // name -> { folder, files:[{path,sha,name}] }
+      function load() {
+        showMsg('加载中…');
+        bodyEl.innerHTML = '';
+        parseCollections().then(function (map) {
+          var names = Object.keys(map);
+          return Promise.all(names.map(function (name) {
+            var folder = map[name];
+            return gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
+              if (!r.ok) return { name: name, folder: folder, files: [] };
+              return r.json().then(function (arr) {
+                var files = (Array.isArray(arr) ? arr : []).filter(function (x) { return x.type === 'file'; })
+                  .map(function (x) { return { name: x.name, path: x.path, sha: x.sha }; });
+                return { name: name, folder: folder, files: files };
+              });
+            }).catch(function () { return { name: name, folder: folder, files: [] }; });
+          })).then(function (res) {
+            data = {};
+            res.forEach(function (c) { data[c.name] = c; });
+            render();
+            showMsg('');
+          });
+        }).catch(function (e) { showMsg('加载失败：' + (e && e.message)); });
+      }
+      function render() {
+        bodyEl.innerHTML = '';
+        Object.keys(data).forEach(function (name) {
+          var c = data[name];
+          var wrap = document.createElement('div'); wrap.className = 'mg-coll';
+          var h = document.createElement('h4');
+          h.innerHTML = '<span>' + name + '</span><span class="mg-count">(' + c.files.length + ' 个)</span>';
+          wrap.appendChild(h);
+          if (!c.files.length) {
+            var empty = document.createElement('div'); empty.className = 'mg-empty'; empty.textContent = '（空）';
+            wrap.appendChild(empty); bodyEl.appendChild(wrap); return;
+          }
+          var search = document.createElement('input'); search.className = 'mg-search'; search.placeholder = '筛选 ' + name + ' 文件名…';
+          wrap.appendChild(search);
+          var list = document.createElement('div');
+          function paint(filter) {
+            list.innerHTML = '';
+            c.files.forEach(function (f) {
+              if (filter && f.name.toLowerCase().indexOf(filter.toLowerCase()) === -1) return;
+              var row = document.createElement('label'); row.className = 'mg-row';
+              var cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.path = f.path; cb.dataset.sha = f.sha;
+              cb.addEventListener('change', updateSel);
+              var span = document.createElement('span'); span.className = 'mg-fname'; span.textContent = f.name;
+              row.appendChild(cb); row.appendChild(span); list.appendChild(row);
+            });
+            updateSel();
+          }
+          search.addEventListener('input', function () { paint(search.value.trim()); });
+          paint('');
+          wrap.appendChild(list);
+          bodyEl.appendChild(wrap);
+        });
+        updateSel();
+      }
+      function updateSel() {
+        var n = bodyEl.querySelectorAll('input[type=checkbox]:checked').length;
+        selEl.textContent = '已选 ' + n + ' 项';
+        delBtn.textContent = '删除选中 (' + n + ')';
+        delBtn.disabled = n === 0;
+      }
+      function doDelete() {
+        var boxes = Array.prototype.slice.call(bodyEl.querySelectorAll('input[type=checkbox]:checked'));
+        if (!boxes.length) return;
+        if (!window.confirm('确定删除选中的 ' + boxes.length + ' 个文件？\n删除后 GitHub Actions 会自动重新部署。此操作不可撤销！')) return;
+        delBtn.disabled = true;
+        var done = 0, fail = 0;
+        showMsg('删除中… 0/' + boxes.length);
+        boxes.forEach(function (cb) {
+          var path = cb.dataset.path, sha = cb.dataset.sha;
+          gh(encPath(path), {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: '批量删除 ' + path, sha: sha, branch: BRANCH })
+          }).then(function (r) {
+            if (r.ok || r.status === 200) { done++; }
+            else { fail++; return r.json().then(function (j) { console.warn('Del fail', path, j && j.message); }); }
+          }).catch(function () { fail++; }).then(function () {
+            showMsg('已删除 ' + done + '/' + boxes.length + (fail ? '，失败 ' + fail : ''));
+            if (done + fail >= boxes.length) {
+              if (fail) toast('部分删除失败，请重试失败项');
+              else toast('已删除 ' + done + ' 个文件，正在重新部署…');
+              setTimeout(load, 1200);
+            }
+          });
+        });
+      }
+      function openPanel() { if (!window.CMS) { toast('后台尚未加载完成'); return; } mask.classList.add('mg-show'); panel.classList.add('mg-show'); load(); }
+      function closePanel() { mask.classList.remove('mg-show'); panel.classList.remove('mg-show'); }
+
+      btn.addEventListener('click', openPanel);
+      mask.addEventListener('click', closePanel);
+      document.getElementById('mg-bulk-close').addEventListener('click', closePanel);
+      document.getElementById('mg-bulk-cancel').addEventListener('click', closePanel);
+      document.getElementById('mg-bulk-refresh').addEventListener('click', load);
+      delBtn.addEventListener('click', doDelete);
+
+      function mountBtn() { if (document.body && btn && !document.body.contains(btn)) document.body.appendChild(btn); }
+      function tryShow() { if (window.CMS) { btn.style.display = 'block'; } }
+      tryShow();
+      window.addEventListener('load', tryShow);
+      setInterval(function () { if (window.CMS) btn.style.display = 'block'; }, 5000);
+      mountBtn();
+      setInterval(mountBtn, 10000);
+    } catch (e) { /* 静默 */ }
+  })();
+  </script>
+
   </body>
 </html>
