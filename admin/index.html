@@ -1153,53 +1153,28 @@
   })();
   </script>
 
-  <!-- 块11：批量删除——后台列表页没有多选/删除入口，这里加一个浮窗，
-       直接从 GitHub 仓库按集合列出条目，勾选后批量删文件（触发 Actions 重新部署）。
-       走 GitHub REST API（无需经 Decap 内部 DOM），比在列表上叠复选框更稳。 -->
+  <!-- 块11 v3：列表内联多选删除——点左下角「批量删除」进入多选模式，
+       集合列表每条条目左侧出现复选框（用户要求的交互），底部浮条显示
+       已选数量并可一键删除。v2 浮窗（GitHub 按集合列文件）交互绕远，
+       用户明确要求"在条目的左侧添加删除复选框"，故废弃浮窗。
+       实现：钩住 Decap 列表卡片 li（a[href*="/entries/"] → 最近 li），
+       绝对定位塞入复选框（不进 React 对账逻辑之外——只追加子节点，
+       不改 React 持有的节点结构）；选择状态按 slug 记忆，翻页不丢。
+       删除时按集合列 GitHub 目录一次拿 sha，再逐文件 DELETE。 -->
   <style>
-    #mg-bulk-btn{position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#fff;border:1px solid #d9dce3;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:7px 12px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#b03030;cursor:pointer;user-select:none}
-    #mg-bulk-btn:hover{background:#fbf2f2}
-    #mg-bulk-mask{position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.45);display:none}
-    #mg-bulk-mask.mg-show{display:block}
-    #mg-bulk{position:fixed;top:4vh;left:50%;transform:translateX(-50%);z-index:2147483647;width:min(760px,94vw);max-height:92vh;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:none;flex-direction:column;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a}
-    #mg-bulk.mg-show{display:flex}
-    #mg-bulk .mg-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #ececf0}
-    #mg-bulk .mg-head h3{margin:0;font-size:15px;font-weight:600}
-    #mg-bulk .mg-head .mg-close{margin-left:auto;cursor:pointer;border:none;background:none;font-size:20px;line-height:1;color:#888;padding:0 4px}
-    #mg-bulk .mg-head .mg-refresh{cursor:pointer;border:1px solid #d9dce3;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;color:#333}
-    #mg-bulk .mg-body{overflow:auto;padding:10px 18px 18px}
-    #mg-bulk .mg-coll{margin-top:14px}
-    #mg-bulk .mg-coll h4{margin:0 0 6px;font-size:13px;color:#555;display:flex;align-items:center;gap:8px}
-    #mg-bulk .mg-coll .mg-count{font-weight:400;color:#999}
-    #mg-bulk .mg-search{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d9dce3;border-radius:6px;font-size:12px;margin-bottom:6px}
-    #mg-bulk .mg-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px}
-    #mg-bulk .mg-row:hover{background:#f6f7f9}
-    #mg-bulk .mg-row input{margin:0}
-    #mg-bulk .mg-row .mg-fname{word-break:break-all;color:#222}
-    #mg-bulk .mg-empty{color:#999;font-size:12px;padding:4px 6px}
-    #mg-bulk .mg-foot{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid #ececf0}
-    #mg-bulk .mg-foot .mg-sel{color:#333;font-size:13px}
-    #mg-bulk .mg-foot button{cursor:pointer;border-radius:6px;padding:7px 14px;font-size:13px;border:1px solid transparent}
-    #mg-bulk .mg-foot .mg-del{margin-left:auto;background:#d23b3b;color:#fff;border-color:#d23b3b}
-    #mg-bulk .mg-foot .mg-del:disabled{background:#e6a3a3;cursor:not-allowed}
-    #mg-bulk .mg-foot .mg-cancel{background:#fff;border-color:#d9dce3;color:#333}
-    #mg-bulk .mg-msg{padding:0 18px 12px;color:#b03030;font-size:12px;min-height:0}
+    li.mg-selcard{position:relative!important;padding-left:40px!important;}
+    li.mg-selcard .mg-cb{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;accent-color:#d23b3b;cursor:pointer;z-index:6;margin:0;}
+    #mg-sel-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483647;display:none;align-items:center;gap:12px;background:#fff;border:1px solid #d9dce3;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.12);padding:8px 16px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a}
+    #mg-sel-bar button{cursor:pointer;border-radius:6px;padding:6px 14px;font-size:13px;border:1px solid transparent}
+    #mg-sel-bar #mg-sel-del{background:#d23b3b;color:#fff;border-color:#d23b3b}
+    #mg-sel-bar #mg-sel-del:disabled{background:#e6a3a3;cursor:not-allowed}
+    #mg-sel-bar #mg-sel-cancel{background:#fff;border-color:#d9dce3;color:#333}
   </style>
   <button id="mg-bulk-btn" style="display:none">批量删除</button>
-  <div id="mg-bulk-mask"></div>
-  <div id="mg-bulk">
-    <div class="mg-head">
-      <h3>批量删除条目</h3>
-      <button class="mg-refresh" id="mg-bulk-refresh">刷新</button>
-      <button class="mg-close" id="mg-bulk-close">×</button>
-    </div>
-    <div class="mg-msg" id="mg-bulk-msg"></div>
-    <div class="mg-body" id="mg-bulk-body"></div>
-    <div class="mg-foot">
-      <span class="mg-sel" id="mg-bulk-sel">已选 0 项</span>
-      <button class="mg-cancel" id="mg-bulk-cancel">取消</button>
-      <button class="mg-del" id="mg-bulk-del" disabled>删除选中</button>
-    </div>
+  <div id="mg-sel-bar">
+    <span id="mg-sel-count">已选 0 项</span>
+    <button id="mg-sel-del" disabled>删除选中</button>
+    <button id="mg-sel-cancel">取消</button>
   </div>
   <script>
   (function () {
@@ -1207,27 +1182,27 @@
       var REPO = 'evener920/marginalia-site';
       var BRANCH = 'main';
       var API = 'https://api.github.com/repos/' + REPO + '/contents/';
-      var btn = document.getElementById('mg-bulk-btn');
-      var mask = document.getElementById('mg-bulk-mask');
-      var panel = document.getElementById('mg-bulk');
-      var bodyEl = document.getElementById('mg-bulk-body');
-      var selEl = document.getElementById('mg-bulk-sel');
-      var delBtn = document.getElementById('mg-bulk-del');
-      var msgEl = document.getElementById('mg-bulk-msg');
       var FALLBACK = { posts: '_posts', videos: '_videos', docs: '_docs', shujian: '_shujian', poetry: '_poetry', songs: '_songs' };
+      var folders = null;                 /* 集合名 → 目录，异步从 config.yml 解析 */
+      var mode = false;                   /* 多选模式开关 */
+      var selected = {};                  /* key: coll+'/'+slug → {coll, slug} */
+      var deleting = false;
 
-      function showMsg(m) { msgEl.textContent = m || ''; }
+      var btn = document.getElementById('mg-bulk-btn');
+      var bar = document.getElementById('mg-sel-bar');
+      var countEl = document.getElementById('mg-sel-count');
+      var delBtn = document.getElementById('mg-sel-del');
+      var cancelBtn = document.getElementById('mg-sel-cancel');
+
       function toast(msg) {
         var t = document.createElement('div');
-        t.style.cssText = 'position:fixed;left:50%;bottom:60px;transform:translateX(-50%);z-index:2147483647;background:#1f2937;color:#fff;padding:8px 14px;border-radius:8px;font:13px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:90vw';
+        t.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:2147483647;background:#1f2937;color:#fff;padding:8px 14px;border-radius:8px;font:13px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:90vw';
         t.textContent = msg; document.body.appendChild(t);
         setTimeout(function () { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2600);
         setTimeout(function () { try { t.remove(); } catch (e) {} }, 3000);
       }
       function getToken() {
-        /* v2：Decap 的 CMS.getBackend(name) 返回的是注册的后端"类"而非已登录实例，
-           无参调用为 undefined——旧写法永远取不到 token。
-           正确来源：localStorage["decap-cms-user"]（JSON，含 access_token/token）。 */
+        /* token 来源：localStorage["decap-cms-user"]（v2 已验证的正确取法） */
         return new Promise(function (resolve, reject) {
           try {
             var raw = window.localStorage.getItem('decap-cms-user');
@@ -1235,7 +1210,7 @@
             var tok = u && (u.access_token || u.token);
             if (tok) return resolve(tok);
           } catch (e) { /* fallthrough */ }
-          reject(new Error('未取到 GitHub 登录凭证（请确认已在后台登录）'));
+          reject(new Error('未取到 GitHub 登录凭证（请刷新页面重新登录）'));
         });
       }
       function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
@@ -1243,135 +1218,203 @@
         return getToken().then(function (tok) {
           opts = opts || {};
           opts.headers = Object.assign({ 'Accept': 'application/vnd.github+json' }, opts.headers || {});
-          if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
+          opts.headers['Authorization'] = 'Bearer ' + tok;
           return fetch(API + path, opts);
         });
       }
-      function parseCollections() {
-        return fetch(new URL('config.yml', document.baseURI)).then(function (r) { return r.text(); })
-          .then(function (txt) {
-            var map = {}, m, re = /-\s*name:\s*["']?([\w-]+)["']?[\s\S]*?folder:\s*["']?([\w\/-]+)["']?/g;
-            while ((m = re.exec(txt))) map[m[1]] = m[2].replace(/^["']|["']$/g, '');
-            if (!Object.keys(map).length) map = FALLBACK;
-            return map;
-          }).catch(function () { return FALLBACK; });
+      /* 解析 config.yml 拿集合目录映射（失败回落 FALLBACK） */
+      (function () {
+        fetch(new URL('config.yml', document.baseURI)).then(function (r) { return r.text(); }).then(function (txt) {
+          var map = {}, m, re = /-\s*name:\s*["']?([\w-]+)["']?[\s\S]*?folder:\s*["']?([\w\/-]+)["']?/g;
+          while ((m = re.exec(txt))) map[m[1]] = m[2].replace(/^["']|["']$/g, '');
+          folders = Object.keys(map).length ? map : FALLBACK;
+        }).catch(function () { folders = FALLBACK; });
+      })();
+
+      /* ---------- 列表卡片定位（与分页脚本同一锚点） ---------- */
+      function getColl() {
+        var m = (location.hash || '').match(/#\/collections\/([^\/]+)/);
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      function collectCards() {
+        var cards = [], seen = [];
+        if (!getColl()) return cards;
+        var links = document.querySelectorAll('a[href*="/entries/"]');
+        for (var i = 0; i < links.length; i++) {
+          var card = links[i].closest ? links[i].closest('li') : null;
+          if (!card) card = links[i].parentElement;
+          if (card && seen.indexOf(card) < 0) { seen.push(card); cards.push(card); }
+        }
+        return cards;
+      }
+      function entryInfo(card) {
+        var a = card.querySelector ? card.querySelector('a[href*="/entries/"]') : null;
+        if (!a) return null;
+        var m = (a.getAttribute('href') || '').match(/#\/collections\/([^\/]+)\/entries\/(.+)$/);
+        if (!m) return null;
+        var slug;
+        try { slug = decodeURIComponent(m[2]); } catch (e) { slug = m[2]; }
+        return { coll: decodeURIComponent(m[1]), slug: slug };
       }
 
-      var data = {}; // name -> { folder, files:[{path,sha,name}] }
-      function load() {
-        showMsg('加载中…');
-        bodyEl.innerHTML = '';
-        parseCollections().then(function (map) {
-          var names = Object.keys(map);
-          return Promise.all(names.map(function (name) {
-            var folder = map[name];
-            return gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
-              if (!r.ok) return { name: name, folder: folder, files: [], error: r.status };
-              return r.json().then(function (arr) {
-                var files = (Array.isArray(arr) ? arr : []).filter(function (x) { return x.type === 'file'; })
-                  .map(function (x) { return { name: x.name, path: x.path, sha: x.sha }; });
-                return { name: name, folder: folder, files: files };
-              });
-            }).catch(function (err) { return { name: name, folder: folder, files: [], error: (err && err.message) || 'network' }; });
-          })).then(function (res) {
-            data = {};
-            res.forEach(function (c) { data[c.name] = c; });
-            render();
-            showMsg('');
+      /* ---------- 复选框注入（幂等：卡片复用已有节点） ---------- */
+      function ensureCheckbox(card) {
+        var info = entryInfo(card);
+        if (!info) return null;
+        var cb = card.querySelector(':scope > .mg-cb') || card.querySelector('.mg-cb');
+        if (!cb) {
+          cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'mg-cb';
+          /* 点击/变更不冒泡给卡片内的链接，避免误触导航 */
+          cb.addEventListener('click', function (e) { e.stopPropagation(); });
+          cb.addEventListener('change', function () {
+            var key = info.coll + '/' + info.slug;
+            if (cb.checked) selected[key] = { coll: info.coll, slug: info.slug };
+            else delete selected[key];
+            updateCount();
           });
-        }).catch(function (e) { showMsg('加载失败：' + (e && e.message)); });
+          card.appendChild(cb);
+        }
+        card.classList.add('mg-selcard');
+        cb.checked = !!selected[info.coll + '/' + info.slug];
+        cb.style.display = mode ? '' : 'none';
+        return cb;
       }
-      function render() {
-        bodyEl.innerHTML = '';
-        Object.keys(data).forEach(function (name) {
-          var c = data[name];
-          var wrap = document.createElement('div'); wrap.className = 'mg-coll';
-          var h = document.createElement('h4');
-          h.innerHTML = '<span>' + name + '</span><span class="mg-count">(' + c.files.length + ' 个)</span>';
-          wrap.appendChild(h);
-          if (c.error) {
-            var errEl = document.createElement('div'); errEl.className = 'mg-empty';
-            errEl.style.color = '#b03030';
-            errEl.textContent = c.error === 401 || c.error === 403
-              ? '（加载失败 ' + c.error + '：登录凭证无效，请刷新后台重新登录 GitHub）'
-              : '（加载失败：' + c.error + '）';
-            wrap.appendChild(errEl); bodyEl.appendChild(wrap); return;
-          }
-          if (!c.files.length) {
-            var empty = document.createElement('div'); empty.className = 'mg-empty'; empty.textContent = '（空）';
-            wrap.appendChild(empty); bodyEl.appendChild(wrap); return;
-          }
-          var search = document.createElement('input'); search.className = 'mg-search'; search.placeholder = '筛选 ' + name + ' 文件名…';
-          wrap.appendChild(search);
-          var list = document.createElement('div');
-          function paint(filter) {
-            list.innerHTML = '';
-            c.files.forEach(function (f) {
-              if (filter && f.name.toLowerCase().indexOf(filter.toLowerCase()) === -1) return;
-              var row = document.createElement('label'); row.className = 'mg-row';
-              var cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.path = f.path; cb.dataset.sha = f.sha;
-              cb.addEventListener('change', updateSel);
-              var span = document.createElement('span'); span.className = 'mg-fname'; span.textContent = f.name;
-              row.appendChild(cb); row.appendChild(span); list.appendChild(row);
-            });
-            updateSel();
-          }
-          search.addEventListener('input', function () { paint(search.value.trim()); });
-          paint('');
-          wrap.appendChild(list);
-          bodyEl.appendChild(wrap);
-        });
-        updateSel();
-      }
-      function updateSel() {
-        var n = bodyEl.querySelectorAll('input[type=checkbox]:checked').length;
-        selEl.textContent = '已选 ' + n + ' 项';
-        delBtn.textContent = '删除选中 (' + n + ')';
-        delBtn.disabled = n === 0;
-      }
-      function doDelete() {
-        var boxes = Array.prototype.slice.call(bodyEl.querySelectorAll('input[type=checkbox]:checked'));
-        if (!boxes.length) return;
-        if (!window.confirm('确定删除选中的 ' + boxes.length + ' 个文件？\n删除后 GitHub Actions 会自动重新部署。此操作不可撤销！')) return;
-        delBtn.disabled = true;
-        var done = 0, fail = 0;
-        showMsg('删除中… 0/' + boxes.length);
-        boxes.forEach(function (cb) {
-          var path = cb.dataset.path, sha = cb.dataset.sha;
-          gh(encPath(path), {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: '批量删除 ' + path, sha: sha, branch: BRANCH })
-          }).then(function (r) {
-            if (r.ok || r.status === 200) { done++; }
-            else { fail++; return r.json().then(function (j) { console.warn('Del fail', path, j && j.message); }); }
-          }).catch(function () { fail++; }).then(function () {
-            showMsg('已删除 ' + done + '/' + boxes.length + (fail ? '，失败 ' + fail : ''));
-            if (done + fail >= boxes.length) {
-              if (fail) toast('部分删除失败，请重试失败项');
-              else toast('已删除 ' + done + ' 个文件，正在重新部署…');
-              setTimeout(load, 1200);
+      function applyAll() {
+        try {
+          var cards = collectCards();
+          if (!mode) {
+            for (var i = 0; i < cards.length; i++) {
+              cards[i].classList.remove('mg-selcard');
+              var cb = cards[i].querySelector('.mg-cb');
+              if (cb) cb.style.display = 'none';
             }
-          });
+            bar.style.display = 'none';
+            return;
+          }
+          if (!cards.length) { bar.style.display = 'none'; return; }
+          for (var k = 0; k < cards.length; k++) { try { ensureCheckbox(cards[k]); } catch (e) { /* 单卡失败不影响其余 */ } }
+          bar.style.display = 'flex';
+        } catch (e) { /* 静默 */ }
+      }
+      function updateCount() {
+        var n = Object.keys(selected).length;
+        countEl.textContent = deleting ? '删除中…' : '已选 ' + n + ' 项';
+        delBtn.textContent = '删除选中' + (n ? ' (' + n + ')' : '');
+        delBtn.disabled = n === 0 || deleting;
+      }
+
+      /* ---------- 删除：按集合列目录拿 sha，再逐文件 DELETE ---------- */
+      function deleteOne(coll, slug, shaMap) {
+        var folder = folders[coll] || FALLBACK[coll];
+        if (!folder) return Promise.reject(new Error('未知集合 ' + coll));
+        var name = shaMap[slug] ? slug + '.md' : null;
+        /* 兜底匹配：slug 可能与文件名不完全一致（无扩展名比对） */
+        if (!name) {
+          var keys = Object.keys(shaMap);
+          for (var i = 0; i < keys.length; i++) {
+            if (keys[i].replace(/\.[^.]+$/, '') === slug) { name = keys[i]; break; }
+          }
+        }
+        if (!name) return Promise.reject(new Error('未在 ' + folder + ' 找到 ' + slug));
+        var path = folder + '/' + name;
+        return gh(encPath(path), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: '批量删除 ' + path, sha: shaMap[name], branch: BRANCH })
+        }).then(function (r) {
+          if (r.ok) return;
+          return r.json().then(function (j) { throw new Error(path + '：' + ((j && j.message) || r.status)); });
         });
       }
-      function openPanel() { if (!window.CMS) { toast('后台尚未加载完成'); return; } mask.classList.add('mg-show'); panel.classList.add('mg-show'); load(); }
-      function closePanel() { mask.classList.remove('mg-show'); panel.classList.remove('mg-show'); }
+      function deleteSelected() {
+        var items = Object.keys(selected).map(function (k) { return selected[k]; });
+        if (!items.length || deleting) return;
+        if (!window.confirm('确定删除选中的 ' + items.length + ' 个条目？\n删除后 GitHub Actions 会自动重新部署。此操作不可撤销！')) return;
+        if (!folders) { toast('集合配置尚未加载完成，请稍后重试'); return; }
+        deleting = true; updateCount();
+        var byColl = {};
+        items.forEach(function (it) { (byColl[it.coll] = byColl[it.coll] || []).push(it); });
+        var done = 0, fail = 0, total = items.length;
+        var collNames = Object.keys(byColl);
+        /* 逐集合：列目录（一次）→ 逐条删除 */
+        function nextColl(ci) {
+          if (ci >= collNames.length) return finish();
+          var coll = collNames[ci];
+          var folder = folders[coll] || FALLBACK[coll];
+          gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
+            if (!r.ok) throw new Error('列目录失败 ' + r.status + '（' + coll + '）');
+            return r.json();
+          }).then(function (arr) {
+            var shaMap = {};
+            (Array.isArray(arr) ? arr : []).forEach(function (x) { if (x.type === 'file') shaMap[x.name] = x.sha; });
+            var list = byColl[coll];
+            function nextItem(ii) {
+              if (ii >= list.length) { nextColl(ci + 1); return; }
+              deleteOne(coll, list[ii].slug, shaMap).then(function () { done++; })
+                .catch(function (err) { fail++; console.warn('Del fail', err && err.message); })
+                .then(function () {
+                  countEl.textContent = '删除中… ' + (done + fail) + '/' + total + (fail ? '（失败 ' + fail + '）' : '');
+                  nextItem(ii + 1);
+                });
+            }
+            nextItem(0);
+          }).catch(function (err) {
+            fail += byColl[coll].length;
+            toast('集合 ' + coll + ' 删除失败：' + (err && err.message));
+            nextColl(ci + 1);
+          });
+        }
+        function finish() {
+          deleting = false;
+          selected = {};
+          updateCount();
+          if (fail) { toast('有 ' + fail + ' 项删除失败，详情见控制台'); applyAll(); }
+          else {
+            toast('已删除 ' + done + ' 个条目，正在重新部署…');
+            setTimeout(function () { location.reload(); }, 1500);
+          }
+        }
+        nextColl(0);
+      }
 
-      btn.addEventListener('click', openPanel);
-      mask.addEventListener('click', closePanel);
-      document.getElementById('mg-bulk-close').addEventListener('click', closePanel);
-      document.getElementById('mg-bulk-cancel').addEventListener('click', closePanel);
-      document.getElementById('mg-bulk-refresh').addEventListener('click', load);
-      delBtn.addEventListener('click', doDelete);
+      /* ---------- 交互 ---------- */
+      btn.addEventListener('click', function () {
+        if (deleting) return;
+        mode = !mode;
+        btn.textContent = mode ? '完成' : '批量删除';
+        if (!mode) selected = {};
+        applyAll();
+        updateCount();
+      });
+      cancelBtn.addEventListener('click', function () {
+        selected = {};
+        mode = false;
+        btn.textContent = '批量删除';
+        applyAll();
+        updateCount();
+      });
+      delBtn.addEventListener('click', deleteSelected);
 
       function mountBtn() { if (document.body && btn && !document.body.contains(btn)) document.body.appendChild(btn); }
-      function tryShow() { if (window.CMS) { btn.style.display = 'block'; } }
+      function tryShow() { if (window.CMS) btn.style.display = 'block'; }
       tryShow();
       window.addEventListener('load', tryShow);
       setInterval(function () { if (window.CMS) btn.style.display = 'block'; }, 5000);
       mountBtn();
       setInterval(mountBtn, 10000);
+
+      applyAll();
+      var scheduled = false;
+      new MutationObserver(function () {
+        if (scheduled || deleting) return;
+        scheduled = true;
+        requestAnimationFrame(function () {
+          scheduled = false;
+          try { applyAll(); } catch (e) { /* 静默 */ }
+        });
+      }).observe(document.body, { childList: true, subtree: true });
     } catch (e) { /* 静默 */ }
   })();
   </script>
