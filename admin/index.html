@@ -786,18 +786,27 @@
     </script>
     <script>
     /* ============================================================
-       编辑器表格边框软化：Decap 内置表格样式是 td/th 黑框
-       （border:1px solid black，整个 bundle 里唯一的黑色边框）。
-       正文里一旦被带入表格节点（典型：从网页粘贴），编辑器就
-       画出一圈黑框，且光标易困在空表格里看似无法输入。
-       这里把编辑器内表格边框改为浅灰，视觉融入整体风格。
+       编辑器边框软化 v2（#26 v1 只覆盖 td/th，不够）：
+       - Decap bundle 自带的黑框：StyledTd（td/th 黑框）+ StyledHr
+         （hr 的 border:1px solid 没写颜色 → currentColor 黑线）。
+       - 更隐蔽的一类：从网页粘贴的内容自带内联黑色边框（典型：
+         pexels 等站复制时裹着带 style/border 的包装表格/元素），
+         随节点原样进编辑器，画出一圈黑框。
+       v2 改为编辑器内「边框颜色一刀切」：所有元素 border-color
+       一律浅灰 #d9dce3（宽度/样式保留），编辑器是编辑环境，内部
+       所有边框都是装饰性结构线，统一灰色不影响语义与发布内容。
+       实测复现台（t-black.html，真实 bundle）静态内容 0 黑框；
+       本规则把粘贴路径的黑框也一并归零。
        ============================================================ */
     (function () {
       var s = document.createElement('style');
       s.textContent =
         '[data-slate-editor="true"] table td,' +
         '[data-slate-editor="true"] table th' +
-        '{border:1px solid #d9dce3!important}';
+        '{border:1px solid #d9dce3!important}' +
+        '[data-slate-editor="true"] table{border-color:#d9dce3!important}' +
+        '[data-slate-editor="true"] hr{border:1px solid #d9dce3!important}' +
+        '[data-slate-editor="true"] *{border-color:#d9dce3!important}';
       document.head.appendChild(s);
     })();
     </script>
