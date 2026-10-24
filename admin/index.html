@@ -1153,17 +1153,20 @@
   })();
   </script>
 
-  <!-- 块11 v3：列表内联多选删除——点左下角「批量删除」进入多选模式，
+  <!-- 块11 v4：列表内联多选删除——点左下角「批量删除」进入多选模式，
        集合列表每条条目左侧出现复选框（用户要求的交互），底部浮条显示
-       已选数量并可一键删除。v2 浮窗（GitHub 按集合列文件）交互绕远，
-       用户明确要求"在条目的左侧添加删除复选框"，故废弃浮窗。
-       实现：钩住 Decap 列表卡片 li（a[href*="/entries/"] → 最近 li），
-       绝对定位塞入复选框（不进 React 对账逻辑之外——只追加子节点，
-       不改 React 持有的节点结构）；选择状态按 slug 记忆，翻页不丢。
-       删除时按集合列 GitHub 目录一次拿 sha，再逐文件 DELETE。 -->
+       已选数量并可一键删除。
+       v4 修复：① v3 重写时丢了 #mg-bulk-btn 样式规则，按钮落回浏览器默认
+       样式又高又丑（用户截图反馈"删除的按钮太高了"）→ 补回左下角小药丸样式；
+       ② 逐文件 DELETE 每删一条建一个 commit，太慢（用户反馈"删除的效率不高"）
+       → 改用 Git Data API 单次提交删除：先 GET recursive 文件树解析 slug→路径，
+       再 ref→commit→tree(sha:null 即删除)→新 commit→更新 ref，共 5 个请求、
+       1 个 commit、只触发 1 次部署；任一步失败回退为并行（4 并发）逐文件 DELETE。 -->
   <style>
     li.mg-selcard{position:relative!important;padding-left:40px!important;}
     li.mg-selcard .mg-cb{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;accent-color:#d23b3b;cursor:pointer;z-index:6;margin:0;}
+    #mg-bulk-btn{position:fixed!important;left:14px!important;bottom:16px!important;top:auto!important;right:auto!important;z-index:2147483646!important;background:#d23b3b!important;color:#fff!important;border:none!important;border-radius:999px!important;box-shadow:0 2px 10px rgba(210,59,59,.35)!important;padding:9px 18px!important;font:600 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif!important;cursor:pointer!important;user-select:none!important;width:auto!important;height:auto!important;margin:0!important;min-height:0!important;letter-spacing:.5px}
+    #mg-bulk-btn:hover{background:#b92f2f!important}
     #mg-sel-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483647;display:none;align-items:center;gap:12px;background:#fff;border:1px solid #d9dce3;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.12);padding:8px 16px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a}
     #mg-sel-bar button{cursor:pointer;border-radius:6px;padding:6px 14px;font-size:13px;border:1px solid transparent}
     #mg-sel-bar #mg-sel-del{background:#d23b3b;color:#fff;border-color:#d23b3b}
@@ -1214,12 +1217,14 @@
         });
       }
       function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+      /* v4：path 支持完整 URL（Git Data API 用）或相对 contents/ 的路径 */
       function gh(path, opts) {
         return getToken().then(function (tok) {
           opts = opts || {};
           opts.headers = Object.assign({ 'Accept': 'application/vnd.github+json' }, opts.headers || {});
           opts.headers['Authorization'] = 'Bearer ' + tok;
-          return fetch(API + path, opts);
+          var url = /^https?:/.test(path) ? path : API + path;
+          return fetch(url, opts);
         });
       }
       /* 解析 config.yml 拿集合目录映射（失败回落 FALLBACK） */
@@ -1305,28 +1310,100 @@
         delBtn.disabled = n === 0 || deleting;
       }
 
-      /* ---------- 删除：按集合列目录拿 sha，再逐文件 DELETE ---------- */
-      function deleteOne(coll, slug, shaMap) {
-        var folder = folders[coll] || FALLBACK[coll];
-        if (!folder) return Promise.reject(new Error('未知集合 ' + coll));
-        var name = shaMap[slug] ? slug + '.md' : null;
-        /* 兜底匹配：slug 可能与文件名不完全一致（无扩展名比对） */
-        if (!name) {
-          var keys = Object.keys(shaMap);
-          for (var i = 0; i < keys.length; i++) {
-            if (keys[i].replace(/\.[^.]+$/, '') === slug) { name = keys[i]; break; }
+      /* ---------- 删除 v4：Git Data API 单次提交（快） + 并行逐文件回退 ---------- */
+      var GAPI = 'https://api.github.com/repos/' + REPO + '/git/';
+      /* 把选中的 slug 解析为仓库内实际路径：先按 slug+'.md' 精确匹配，
+         再按"去扩展名相等"兜底（slug 与文件名可能不完全一致） */
+      function resolvePaths(allPaths, items) {
+        var out = [], missing = [];
+        items.forEach(function (it) {
+          var folder = folders[it.coll] || FALLBACK[it.coll];
+          if (!folder) { missing.push(it.coll + '/' + it.slug); return; }
+          var exact = folder + '/' + it.slug + '.md';
+          if (allPaths.indexOf(exact) > -1) { out.push(exact); return; }
+          var hit = null;
+          for (var i = 0; i < allPaths.length; i++) {
+            var p = allPaths[i];
+            if (p.indexOf(folder + '/') === 0 && p.slice(folder.length + 1).replace(/\.[^.]+$/, '') === it.slug) { hit = p; break; }
           }
-        }
-        if (!name) return Promise.reject(new Error('未在 ' + folder + ' 找到 ' + slug));
-        var path = folder + '/' + name;
-        return gh(encPath(path), {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: '批量删除 ' + path, sha: shaMap[name], branch: BRANCH })
-        }).then(function (r) {
-          if (r.ok) return;
-          return r.json().then(function (j) { throw new Error(path + '：' + ((j && j.message) || r.status)); });
+          if (hit) out.push(hit); else missing.push(folder + '/' + it.slug);
         });
+        return { paths: out, missing: missing };
+      }
+      /* 单次提交删除：ref → commit → 在 base_tree 上把目标文件 sha 置 null（即删除）
+         → 新 commit → 更新 ref。共 5 个请求，与删除数量无关。 */
+      function deleteViaGitData(paths) {
+        function req(url, body, method) {
+          return gh(url, { method: method || 'GET', headers: { 'Content-Type': 'application/json' },
+            body: body ? JSON.stringify(body) : undefined }).then(function (r) {
+            if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) {
+              throw new Error(((j && j.message) || r.status));
+            });
+            return r.json();
+          });
+        }
+        return req(GAPI + 'ref/heads/' + BRANCH).then(function (ref) {
+          var head = ref.object.sha;
+          return req(GAPI + 'commits/' + head).then(function (c) {
+            var tree = paths.map(function (p) { return { path: p, mode: '100644', type: 'blob', sha: null }; });
+            return req(GAPI + 'trees', { base_tree: c.tree.sha, tree: tree }, 'POST').then(function (t) {
+              return req(GAPI + 'commits', { message: '批量删除 ' + paths.length + ' 个条目', tree: t.sha, parents: [head] }, 'POST').then(function (nc) {
+                return req(GAPI + 'refs/heads/' + BRANCH, { sha: nc.sha, force: false }, 'PATCH');
+              });
+            });
+          });
+        });
+      }
+      /* 回退：并行逐文件 DELETE（4 并发），每文件一个 commit */
+      function deleteFallback(byColl, total) {
+        var done = 0, fail = 0;
+        var tasks = [], shaCache = {};
+        Object.keys(byColl).forEach(function (coll) {
+          var folder = folders[coll] || FALLBACK[coll];
+          byColl[coll].forEach(function (it) { tasks.push({ folder: folder, slug: it.slug }); });
+        });
+        function listSha(folder) {
+          if (shaCache[folder]) return Promise.resolve(shaCache[folder]);
+          return gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
+            if (!r.ok) throw new Error('列目录失败 ' + r.status + '（' + folder + '）');
+            return r.json().then(function (arr) {
+              var shaMap = {};
+              (Array.isArray(arr) ? arr : []).forEach(function (x) { if (x.type === 'file') shaMap[x.name] = x.sha; });
+              shaCache[folder] = shaMap;
+              return shaMap;
+            });
+          });
+        }
+        function worker() {
+          if (!tasks.length) return Promise.resolve();
+          var t = tasks.shift();
+          return listSha(t.folder).then(function (shaMap) {
+            var name = shaMap[t.slug + '.md'] ? t.slug + '.md' : null;
+            if (!name) {
+              var keys = Object.keys(shaMap);
+              for (var i = 0; i < keys.length; i++) {
+                if (keys[i].replace(/\.[^.]+$/, '') === t.slug) { name = keys[i]; break; }
+              }
+            }
+            if (!name) throw new Error('未在 ' + t.folder + ' 找到 ' + t.slug);
+            var path = t.folder + '/' + name;
+            return gh(encPath(path), {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: '批量删除 ' + path, sha: shaMap[name], branch: BRANCH })
+            }).then(function (r) {
+              if (!r.ok) return r.json().then(function (j) { throw new Error(path + '：' + ((j && j.message) || r.status)); });
+            });
+          }).then(function () { done++; })
+            .catch(function (err) { fail++; console.warn('Del fail', t.slug, err && err.message); })
+            .then(function () {
+              countEl.textContent = '删除中… ' + (done + fail) + '/' + total + (fail ? '（失败 ' + fail + '）' : '');
+              return worker();
+            });
+        }
+        var ps = [];
+        for (var i = 0; i < Math.min(4, tasks.length); i++) ps.push(worker());
+        return Promise.all(ps).then(function () { return { ok: done, fail: fail }; });
       }
       function deleteSelected() {
         var items = Object.keys(selected).map(function (k) { return selected[k]; });
@@ -1334,49 +1411,41 @@
         if (!window.confirm('确定删除选中的 ' + items.length + ' 个条目？\n删除后 GitHub Actions 会自动重新部署。此操作不可撤销！')) return;
         if (!folders) { toast('集合配置尚未加载完成，请稍后重试'); return; }
         deleting = true; updateCount();
-        var byColl = {};
-        items.forEach(function (it) { (byColl[it.coll] = byColl[it.coll] || []).push(it); });
-        var done = 0, fail = 0, total = items.length;
-        var collNames = Object.keys(byColl);
-        /* 逐集合：列目录（一次）→ 逐条删除 */
-        function nextColl(ci) {
-          if (ci >= collNames.length) return finish();
-          var coll = collNames[ci];
-          var folder = folders[coll] || FALLBACK[coll];
-          gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
-            if (!r.ok) throw new Error('列目录失败 ' + r.status + '（' + coll + '）');
-            return r.json();
-          }).then(function (arr) {
-            var shaMap = {};
-            (Array.isArray(arr) ? arr : []).forEach(function (x) { if (x.type === 'file') shaMap[x.name] = x.sha; });
-            var list = byColl[coll];
-            function nextItem(ii) {
-              if (ii >= list.length) { nextColl(ci + 1); return; }
-              deleteOne(coll, list[ii].slug, shaMap).then(function () { done++; })
-                .catch(function (err) { fail++; console.warn('Del fail', err && err.message); })
-                .then(function () {
-                  countEl.textContent = '删除中… ' + (done + fail) + '/' + total + (fail ? '（失败 ' + fail + '）' : '');
-                  nextItem(ii + 1);
-                });
-            }
-            nextItem(0);
+        countEl.textContent = '准备删除…';
+        /* 1) 一次拿全仓库文件树（recursive），把所有选中 slug 解析为真实路径 */
+        gh(GAPI + 'trees/' + BRANCH + '?recursive=1').then(function (r) {
+          if (!r.ok) throw new Error('列文件树失败 ' + r.status);
+          return r.json();
+        }).then(function (tree) {
+          var all = (tree.tree || []).filter(function (x) { return x.type === 'blob'; }).map(function (x) { return x.path; });
+          var resolved = resolvePaths(all, items);
+          if (resolved.missing.length) console.warn('未匹配到文件：', resolved.missing.join(', '));
+          if (!resolved.paths.length) throw new Error('没有匹配到任何文件，请刷新页面后重试');
+          countEl.textContent = '删除中… 0/' + resolved.paths.length;
+          /* 2) 单次提交删除（快路径） */
+          return deleteViaGitData(resolved.paths).then(function () {
+            return { ok: resolved.paths.length, fail: 0 };
           }).catch(function (err) {
-            fail += byColl[coll].length;
-            toast('集合 ' + coll + ' 删除失败：' + (err && err.message));
-            nextColl(ci + 1);
+            /* 3) 失败回退：并行逐文件 DELETE */
+            console.warn('单提交删除失败，回退为逐个删除：', err && err.message);
+            var byColl = {};
+            items.forEach(function (it) { (byColl[it.coll] = byColl[it.coll] || []).push(it); });
+            return deleteFallback(byColl, resolved.paths.length);
           });
-        }
-        function finish() {
+        }).then(function (res) {
           deleting = false;
           selected = {};
           updateCount();
-          if (fail) { toast('有 ' + fail + ' 项删除失败，详情见控制台'); applyAll(); }
+          if (res.fail) { toast('有 ' + res.fail + ' 项删除失败，详情见控制台'); applyAll(); }
           else {
-            toast('已删除 ' + done + ' 个条目，正在重新部署…');
+            toast('已删除 ' + res.ok + ' 个条目（单次提交），正在重新部署…');
             setTimeout(function () { location.reload(); }, 1500);
           }
-        }
-        nextColl(0);
+        }).catch(function (err) {
+          deleting = false;
+          updateCount();
+          toast('删除失败：' + (err && err.message));
+        });
       }
 
       /* ---------- 交互 ---------- */
