@@ -67,6 +67,9 @@ collections:
   shujian:
     output: true
     permalink: /shujian/:name/
+  dushu:
+    output: true
+    permalink: /dushu/:name/
   poetry:
     output: true
     permalink: /poetry/:name/
@@ -104,6 +107,11 @@ defaults:
       layout: page
   - scope:
       path: ""
+      type: dushu
+    values:
+      layout: dushu
+  - scope:
+      path: ""
       type: poetry
     values:
       layout: poetry
@@ -119,6 +127,8 @@ nav:
     link: /
   - name: 文章
     link: /articles/
+  - name: 读书
+    link: /dushu/
   - name: 视频
     link: /videos/
   - name: 文档
@@ -140,6 +150,10 @@ streams:
     link: /articles/
     image: /assets/img/site/emblem-notes.jpg
     desc: 你写下的每一篇文章与随笔。
+  - title: 读书
+    link: /dushu/
+    image: /assets/img/site/emblem-dushu.jpg
+    desc: 读书笔记与书评，一盏茶里的整本书。
   - title: 视频
     link: /videos/
     image: /assets/img/site/emblem-videos.jpg
@@ -154,9 +168,9 @@ streams:
     desc: 读书笺注 · 你写下的书边批语。
   - title: 诗词
     link: /poetry/
-    image: /assets/img/site/emblem-poetry.svg
+    image: /assets/img/site/emblem-poetry.jpg
     desc: 古典与现代诗词，配上诵读与讲解的视频、音频。
   - title: 歌本
     link: /songs/
-    image: /assets/img/site/emblem-songs.svg
+    image: /assets/img/site/emblem-songs.jpg
     desc: 一首首歌，配上原唱视频与音频，随时听、随时看。

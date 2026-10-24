@@ -114,6 +114,25 @@ collections:
       - { name: cover, label: "书影 / 封面图", widget: image, required: false }
       - { name: body, label: "正文（笺注内容）", widget: markdown }
 
+  # ============ 读书：标题 + 封面 + 笔记正文 ============
+  - name: "dushu"
+    label: "读书"
+    label_singular: "一篇读书笔记"
+    folder: "_dushu"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    create: true
+    summary: "{{date | date('YYYY-MM-DD HH:mm')}}  ·  {{title}}"
+    editor:
+      preview: false
+    fields:
+      - { name: layout, label: "布局", widget: hidden, default: dushu }
+      - { name: title, label: "书名 / 篇名", widget: string }
+      - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
+      - { name: author, label: "原作者（可留空）", widget: string, required: false }
+      - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
+      - { name: cover, label: "封面图", widget: image, required: false }
+      - { name: body, label: "正文（读书笔记）", widget: markdown }
+
   # ============ 诗词：标题 + 视频入口 + 音频入口（全套） ============
   - name: "poetry"
     label: "诗词"

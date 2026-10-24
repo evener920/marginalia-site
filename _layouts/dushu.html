@@ -1,0 +1,31 @@
+---
+layout: default
+---
+<div class="wrap">
+  <article class="page shujian-page">
+    <header class="page-header shujian-header">
+      <p class="kicker shujian-kicker">📚 读书</p>
+      <h1>{{ page.title }}</h1>
+      {% if page.description %}<p class="shujian-lede">{{ page.description }}</p>{% endif %}
+      <p class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %-m 月 %-d 日' }}</time>
+        {% if page.author %}<span class="dot">·</span><span>{{ page.author }}</span>{% endif %}
+      </p>
+    </header>
+
+    {% if page.cover %}
+    <div class="shujian-cover">
+      <img src="{{ page.cover | relative_url }}" alt="" loading="lazy">
+    </div>
+    {% endif %}
+
+    <div class="page-body shujian-body">
+      {{ content }}
+    </div>
+
+    <footer class="post-footer">
+      {% include reactions.html slug=page.url title=page.title url=page.url %}
+      <p><a class="back" href="{{ '/dushu/' | relative_url }}">← 所有读书笔记</a></p>
+    </footer>
+  </article>
+</div>
