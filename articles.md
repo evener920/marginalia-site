@@ -161,7 +161,7 @@ wide: true
   {% assign pcat = '随笔' %}
   {% if p.category %}{% assign pcat = p.category %}{% endif %}
   <li data-cats="{{ pcat }}">
-    <a class="thumb" href="{{ p.url | relative_url }}" aria-label="{{ p.title }}">
+    <a class="thumb" href="{{ p.url | relative_url }}" aria-label="{{ p.title | escape }}">
       {% if p.cover %}<img src="{{ p.cover | relative_url }}" alt="" loading="lazy">{% else %}✒️{% endif %}
     </a>
     <div class="meta">

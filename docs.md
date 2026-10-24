@@ -73,7 +73,7 @@ wide: true
 <ul class="docs-list">
   {% for d in docs %}
   <li>
-    <a class="thumb" href="{{ d.url | relative_url }}" aria-label="{{ d.title }}">
+    <a class="thumb" href="{{ d.url | relative_url }}" aria-label="{{ d.title | escape }}">
       {% if d.cover %}<img src="{{ d.cover | relative_url }}" alt="" loading="lazy">{% else %}📄{% endif %}
     </a>
     <div class="meta">

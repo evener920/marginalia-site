@@ -16,7 +16,7 @@ layout: default
     <div class="doc-viewer">
       <iframe
         src="{{ page.pdf_url }}"
-        title="{{ page.title }}"
+        title="{{ page.title | escape }}"
         loading="lazy"
         allow="fullscreen"
       ></iframe>

@@ -146,7 +146,7 @@ wide: true
   <ul class="poetry-list">
   {% for p in poetry %}
   <li data-cats="诗词">
-    <a class="thumb" href="{{ p.url | relative_url }}" aria-label="{{ p.title }}">
+    <a class="thumb" href="{{ p.url | relative_url }}" aria-label="{{ p.title | escape }}">
       {% if p.cover %}<img src="{{ p.cover | relative_url }}" alt="" loading="lazy">{% else %}📜{% endif %}
     </a>
     <div class="meta">

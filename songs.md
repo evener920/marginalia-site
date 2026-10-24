@@ -146,7 +146,7 @@ wide: true
   <ul class="songs-list">
   {% for s in songs %}
   <li data-cats="歌本">
-    <a class="thumb" href="{{ s.url | relative_url }}" aria-label="{{ s.title }}">
+    <a class="thumb" href="{{ s.url | relative_url }}" aria-label="{{ s.title | escape }}">
       {% if s.cover %}<img src="{{ s.cover | relative_url }}" alt="" loading="lazy">{% else %}🎵{% endif %}
     </a>
     <div class="meta">

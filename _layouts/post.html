@@ -28,7 +28,7 @@ layout: default
     </header>
     {%- if page.cover -%}
     <figure class="post-cover">
-      <img src="{{ page.cover | relative_url }}" alt="{{ page.title }} 封面" loading="lazy">
+      <img src="{{ page.cover | relative_url }}" alt="{{ page.title | escape }} 封面" loading="lazy">
     </figure>
     {%- endif -%}
     <div class="post-body">

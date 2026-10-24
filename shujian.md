@@ -151,7 +151,7 @@ wide: true
   {% assign scat = '读书' %}
   {% if s.category %}{% assign scat = s.category %}{% endif %}
   <li data-cats="{{ scat }}">
-    <a class="thumb" href="{{ s.url | relative_url }}" aria-label="{{ s.title }}">
+    <a class="thumb" href="{{ s.url | relative_url }}" aria-label="{{ s.title | escape }}">
       {% if s.cover %}<img src="{{ s.cover | relative_url }}" alt="" loading="lazy">{% else %}📖{% endif %}
     </a>
     <div class="meta">
