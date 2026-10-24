@@ -1079,13 +1079,14 @@
     } catch (e) { /* 静默 */ }
   })();
   </script>
-  <!-- 块10：粘贴消毒——富文本里的 <img> 会让 Decap 3.17.1 崩溃
+  <!-- 块10 v2：粘贴消毒——富文本里的 <img> 会让 Decap 3.17.1 崩溃
        根因（bundle+源码已核实）：粘贴 HTML 反序列化 IMG 分支生成 {type:"image", url}
        而渲染器 kte 解构 e.element.data（undefined → TypeError）。
-       markdown 加载路径（remarkSlate.js）会正常包 data:{url,title,alt}，存量文章安全。
-       解法：capture 阶段拦截 paste，把 text/html 里的 <img> 替换为
-       Markdown 文本占位 ![alt](src)（javascript:/file: 等危险 src 直接删除），
-       编辑器不再生成坏节点；截图等真实图片文件走剪贴板 items 上传路径，不受影响。 -->
+       v1 教训：把 <img> 转成 Markdown 占位"纯文本"不行——Decap 保存时会把纯文本里的
+       ![]() 全部反斜杠转义（存成 \!\[\](url)），线上就渲染成字面文字而不是图片。
+       v2 解法：把 <img> 替换为 <a> 链接节点（plate 对 <a> 反序列化正确、
+       slateToMarkdown 正确序列化为 [文字](url)），既能保留图片 URL 又不会崩；
+       危险 src（javascript:/file:）直接删除。截图等真实图片文件走 items 上传路径不受影响。 -->
   <script>
   (function () {
     try {
@@ -1116,10 +1117,16 @@
           try {
             var src = (img.getAttribute('src') || '').trim();
             var ok = /^https?:\/\//i.test(src) || /^\//.test(src);
-            var alt = (img.getAttribute('alt') || '').replace(/[\[\]]/g, '');
-            var ph = ok ? doc.createTextNode('![' + alt + '](' + src + ')') : null;
-            if (ph) { img.parentNode.replaceChild(ph, img); kept++; }
-            else { img.parentNode.removeChild(img); }
+            if (ok) {
+              /* v2：转成 <a> 链接节点（正确反序列化/序列化），不再用纯文本占位 */
+              var a = doc.createElement('a');
+              a.setAttribute('href', src);
+              a.textContent = (img.getAttribute('alt') || '').replace(/[\[\]]/g, '') || '图片链接';
+              img.parentNode.replaceChild(a, img);
+              kept++;
+            } else {
+              img.parentNode.removeChild(img);
+            }
           } catch (e) { try { img.remove(); } catch (e2) {} }
         });
         /* 即使全部被移除也要返回（用净化后的 HTML 覆盖剪贴板原始 HTML） */
@@ -1138,7 +1145,7 @@
           if (!res) return;
           cd.setData('text/html', res.html);
           if (res.kept > 0) {
-            showToast('已将 ' + res.kept + ' 张粘贴图片转为 Markdown 占位（规避编辑器崩溃）');
+            showToast('检测到 ' + res.kept + ' 张网页图片，已转为链接（要显示图片请用右上角媒体库上传）');
           }
         } catch (e2) { /* 静默，不影响原生粘贴 */ }
       }, true);
