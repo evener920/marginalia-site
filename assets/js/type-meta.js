@@ -1,4 +1,4 @@
-/* 全站内容类型元数据 —— 搜索(search.js) 与归档(archive.js) 共用，单一来源。
+/* 全站内容类型元数据 —— 搜索(search.js) 与索引(archive.js) 共用，单一来源。
  * 新增栏目时：1) 在 _includes/archive_items.html 加一个 for 块；
  *             2) 在此 META 补一条 {label, cls}，并加入 ORDER 即可。 */
 window.MG_TYPES = {

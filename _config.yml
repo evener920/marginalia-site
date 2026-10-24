@@ -141,7 +141,7 @@ nav:
     link: /songs/
   - name: 关于
     link: /about/
-  - name: 归档
+  - name: 索引
     link: /archive/
 
 # 首页「栏目」卡片区：想加/删/改首页栏目卡片，只改这里（image 可留空）

@@ -39,7 +39,7 @@ collections:
       - { name: layout, label: "布局", widget: hidden, default: post }
       - { name: title, label: "标题", widget: string }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
-      - { name: author, label: "作者", widget: hidden, default: "万小罗" }
+      - { name: author, label: "作者", widget: hidden, default: "" }
       - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "点添加后直接输入文字，每行一个标签" }
       - { name: cover, label: "封面图（可选，显示在文章顶部）", widget: image, required: false, hint: "点上传图片选择本地图，发布后显示在文章开头作为头图" }
       - { name: body, label: "正文", widget: markdown }

@@ -1,7 +1,7 @@
 {%- comment -%}
-  单一数据源：全站可索引内容（搜索 + 归档共用）。
+  单一数据源：全站可索引内容（搜索 + 索引共用）。
   历史：search.json 与 archive.html 各写一份 capture，已合并到此文件，二处均 `include` 本片段。
-  ★ 约定（以后新增栏目默认操作）：在此加一个 `for` 块即可，搜索与归档自动同步，
+  ★ 约定（以后新增栏目默认操作）：在此加一个 `for` 块即可，搜索与索引自动同步，
     并到 assets/js/type-meta.js 的 META/ORDER 补一条类型即可，无需改任何 liquid/JS 逻辑。
 {%- endcomment -%}
 {%- capture items -%}
