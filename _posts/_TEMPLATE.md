@@ -1,5 +1,6 @@
 ---
 layout: post
+published: false
 
 # ===== 写新文章时，复制本文件，改名为「YYYY-MM-DD-标题.md」=====
 # 例如：2026-10-21-我的第一篇文章.md

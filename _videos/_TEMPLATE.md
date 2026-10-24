@@ -1,9 +1,10 @@
 ---
 layout: video
+published: false
 title: 在这里填视频标题
 date: 2026-10-21 22:00:00 +08:00
 description: 列表页显示的一句话简介（可留空）
-poster: /assets/img/封面图.jpg
+# poster: /assets/img/covers/封面.jpg  # 可选，填好封面后取消注释并改路径
 duration: "05:32"
 # ===== 视频来源：三选一，删掉不用的 =====
 bvid: BV1xx411c7mD
