@@ -1494,5 +1494,224 @@
   })();
   </script>
 
+  <!-- 块12：条目跨集合移动——编辑页（#/collections/{coll}/entries/{slug}）左下角
+       出现「移动到…」按钮，选目标集合后确认，单次 Git 提交完成
+       "新集合建文件 + 原文件删除"（一个 tree：新 path 用 content、旧 path 用 sha:null）。
+       移动时同步改写 front matter 的 layout 字段（posts→post / songs→song 等），
+       否则 Jekyll 会套错布局。文件名保持不变；目标集合已有同名文件时需二次确认覆盖。
+       未保存的编辑会丢失，确认框提示先保存。 -->
+  <style>
+    #mg-move-btn{position:fixed;left:14px;bottom:64px;z-index:2147483646;background:#fff;color:#8b2e2a;border:1px solid rgba(139,46,42,.35);border-radius:999px;box-shadow:0 2px 8px rgba(31,29,27,.12);padding:8px 16px;font:600 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;cursor:pointer;user-select:none;display:none;letter-spacing:.5px}
+    #mg-move-btn:hover{background:#faf3ef}
+    #mg-move-mask{position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.45);display:none}
+    #mg-move-mask.mg-show{display:block}
+    #mg-move{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;width:min(420px,92vw);background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:none;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a;padding:18px}
+    #mg-move.mg-show{display:block}
+    #mg-move h3{margin:0 0 4px;font-size:15px}
+    #mg-move .mg-mv-sub{color:#888;font-size:12px;margin:0 0 12px;word-break:break-all}
+    #mg-move .mg-mv-list{display:flex;flex-direction:column;gap:6px}
+    #mg-move .mg-mv-list button{text-align:left;cursor:pointer;border:1px solid #d9dce3;background:#fff;border-radius:8px;padding:9px 12px;font-size:13px;color:#333}
+    #mg-move .mg-mv-list button:hover{border-color:#8b2e2a;color:#8b2e2a;background:#faf3ef}
+    #mg-move .mg-mv-list button:disabled{opacity:.4;cursor:not-allowed}
+    #mg-move .mg-mv-close{margin-top:12px;width:100%;cursor:pointer;border:1px solid #d9dce3;background:#fff;border-radius:6px;padding:7px 0;font-size:13px;color:#666}
+    #mg-move .mg-mv-msg{color:#b03030;font-size:12px;margin:8px 0 0;min-height:0}
+  </style>
+  <button id="mg-move-btn">移动到…</button>
+  <div id="mg-move-mask"></div>
+  <div id="mg-move">
+    <h3>移动条目到其他集合</h3>
+    <p class="mg-mv-sub" id="mg-mv-sub"></p>
+    <div class="mg-mv-list" id="mg-mv-list"></div>
+    <p class="mg-mv-msg" id="mg-mv-msg"></p>
+    <button class="mg-mv-close" id="mg-mv-close">关闭</button>
+  </div>
+  <script>
+  (function () {
+    try {
+      var REPO = 'evener920/marginalia-site', BRANCH = 'main';
+      var GAPI = 'https://api.github.com/repos/' + REPO + '/git/';
+      var CAPI = 'https://api.github.com/repos/' + REPO + '/contents/';
+      /* 集合 → 目录 / 中文标签 / front matter layout 值（与 admin/config.yml 对应） */
+      var INFO = {
+        posts:   { folder: '_posts',   label: '文章', layout: 'post' },
+        videos:  { folder: '_videos',  label: '视频', layout: 'video' },
+        docs:    { folder: '_docs',    label: '文档', layout: 'doc' },
+        shujian: { folder: '_shujian', label: '书笺', layout: 'shujian' },
+        poetry:  { folder: '_poetry',  label: '诗词', layout: 'poetry' },
+        songs:   { folder: '_songs',   label: '歌本', layout: 'song' }
+      };
+      var btn = document.getElementById('mg-move-btn');
+      var mask = document.getElementById('mg-move-mask');
+      var panel = document.getElementById('mg-move');
+      var subEl = document.getElementById('mg-mv-sub');
+      var listEl = document.getElementById('mg-mv-list');
+      var msgEl = document.getElementById('mg-mv-msg');
+
+      function getToken() {
+        return new Promise(function (resolve, reject) {
+          try {
+            var raw = window.localStorage.getItem('decap-cms-user');
+            var u = raw ? JSON.parse(raw) : null;
+            var tok = u && (u.access_token || u.token);
+            if (tok) return resolve(tok);
+          } catch (e) { /* fallthrough */ }
+          reject(new Error('未取到 GitHub 登录凭证（请刷新页面重新登录）'));
+        });
+      }
+      function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+      function gh(path, opts) {
+        return getToken().then(function (tok) {
+          opts = opts || {};
+          opts.headers = Object.assign({ 'Accept': 'application/vnd.github+json' }, opts.headers || {});
+          opts.headers['Authorization'] = 'Bearer ' + tok;
+          var url = /^https?:/.test(path) ? path : CAPI + path;
+          return fetch(url, opts);
+        });
+      }
+      function toast(msg) {
+        var t = document.createElement('div');
+        t.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:2147483647;background:#1f2937;color:#fff;padding:8px 14px;border-radius:8px;font:13px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:90vw';
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(function () { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2600);
+        setTimeout(function () { try { t.remove(); } catch (e) {} }, 3000);
+      }
+      function b64ToUtf8(b64) {
+        var bin = atob(String(b64).replace(/\s/g, ''));
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder('utf-8').decode(bytes);
+      }
+      /* 当前是否在编辑页；是则返回 {coll, slug} */
+      function currentEntry() {
+        var m = (location.hash || '').match(/#\/collections\/([^\/]+)\/entries\/(.+)$/);
+        if (!m) return null;
+        var coll, slug;
+        try { coll = decodeURIComponent(m[1]); } catch (e) { coll = m[1]; }
+        try { slug = decodeURIComponent(m[2]); } catch (e) { slug = m[2]; }
+        if (!INFO[coll]) return null;
+        return { coll: coll, slug: slug };
+      }
+      function refreshBtn() {
+        btn.style.display = (currentEntry() && window.CMS) ? 'block' : 'none';
+      }
+
+      /* ---------- 面板 ---------- */
+      function openPanel() {
+        var cur = currentEntry();
+        if (!cur) { toast('请先进入某个条目的编辑页'); return; }
+        subEl.textContent = '《' + cur.slug + '》  （当前集合：' + INFO[cur.coll].label + '）';
+        msgEl.textContent = '';
+        listEl.innerHTML = '';
+        Object.keys(INFO).forEach(function (name) {
+          if (name === cur.coll) return;
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = '移动到「' + INFO[name].label + '」';
+          b.addEventListener('click', function () { doMove(cur, name); });
+          listEl.appendChild(b);
+        });
+        mask.classList.add('mg-show');
+        panel.classList.add('mg-show');
+      }
+      function closePanel() { mask.classList.remove('mg-show'); panel.classList.remove('mg-show'); }
+
+      /* ---------- 移动 ---------- */
+      function relayout(txt, layout) {
+        if (/^layout:/m.test(txt)) return txt.replace(/^layout:.*$/m, 'layout: ' + layout);
+        return txt.replace(/^---\s*?\n/, '---\nlayout: ' + layout + '\n');
+      }
+      function doMove(cur, targetName) {
+        var src = INFO[cur.coll], dst = INFO[targetName];
+        if (!window.confirm('把《' + cur.slug + '》从「' + src.label + '」移动到「' + dst.label + '」？\n\n注意：未保存的修改会丢失，建议先保存再移动。\n移动后原集合不再有这篇条目。')) return;
+        msgEl.textContent = '处理中…';
+        Array.prototype.forEach.call(listEl.querySelectorAll('button'), function (b) { b.disabled = true; });
+        /* 1) 全仓库文件树：定位源文件（拿 blob sha），并检查目标是否同名冲突 */
+        gh(GAPI + 'trees/' + BRANCH + '?recursive=1').then(function (r) {
+          if (!r.ok) throw new Error('列文件树失败 ' + r.status);
+          return r.json();
+        }).then(function (tree) {
+          var blobs = (tree.tree || []).filter(function (x) { return x.type === 'blob'; });
+          var oldPath = null, oldSha = null;
+          var exact = src.folder + '/' + cur.slug + '.md';
+          blobs.forEach(function (x) {
+            if (x.path === exact) { oldPath = x.path; oldSha = x.sha; }
+          });
+          if (!oldPath) {
+            for (var i = 0; i < blobs.length; i++) {
+              var p = blobs[i].path;
+              if (p.indexOf(src.folder + '/') === 0 && p.slice(src.folder.length + 1).replace(/\.[^.]+$/, '') === cur.slug) {
+                oldPath = p; oldSha = blobs[i].sha; break;
+              }
+            }
+          }
+          if (!oldPath) throw new Error('未在 ' + src.folder + ' 找到 ' + cur.slug + '，请刷新后重试');
+          var newPath = dst.folder + '/' + oldPath.slice(src.folder.length + 1);
+          var clash = null;
+          blobs.forEach(function (x) { if (x.path === newPath) clash = x.path; });
+          /* 2) 取源文件内容（改 layout 用） */
+          return gh(encPath(oldPath) + '?ref=' + BRANCH).then(function (r2) {
+            if (!r2.ok) throw new Error('读取源文件失败 ' + r2.status);
+            return r2.json();
+          }).then(function (f) {
+            var txt = relayout(b64ToUtf8(f.content || ''), dst.layout);
+            var proceed = function () {
+              /* 3) 单次提交：新集合建文件 + 原文件删除 */
+              function req(url, body, method) {
+                return gh(url, { method: method || 'GET', headers: { 'Content-Type': 'application/json' },
+                  body: body ? JSON.stringify(body) : undefined }).then(function (r3) {
+                  if (!r3.ok) return r3.json().catch(function () { return {}; }).then(function (j) {
+                    throw new Error((j && j.message) || r3.status);
+                  });
+                  return r3.json();
+                });
+              }
+              return req(GAPI + 'ref/heads/' + BRANCH).then(function (ref) {
+                var head = ref.object.sha;
+                return req(GAPI + 'commits/' + head).then(function (c) {
+                  var entries = [{ path: newPath, mode: '100644', type: 'blob', content: txt },
+                                 { path: oldPath, mode: '100644', type: 'blob', sha: null }];
+                  return req(GAPI + 'trees', { base_tree: c.tree.sha, tree: entries }, 'POST').then(function (t) {
+                    return req(GAPI + 'commits', { message: '移动 ' + oldPath + ' → ' + newPath + '（' + src.label + ' → ' + dst.label + '）', tree: t.sha, parents: [head] }, 'POST').then(function (nc) {
+                      return req(GAPI + 'refs/heads/' + BRANCH, { sha: nc.sha, force: false }, 'PATCH');
+                    });
+                  });
+                });
+              });
+            };
+            if (clash) {
+              if (!window.confirm('目标集合「' + dst.label + '」已有同名文件 ' + clash + '，继续将覆盖它！确定？')) {
+                throw new Error('已取消（目标同名冲突）');
+              }
+            }
+            return proceed().then(function () {
+              closePanel();
+              toast('已移动到「' + dst.label + '」，正在跳转…');
+              setTimeout(function () {
+                location.hash = '#/collections/' + targetName + '/entries/' + cur.slug;
+                location.reload();
+              }, 900);
+            });
+          });
+        }).catch(function (err) {
+          msgEl.textContent = '移动失败：' + (err && err.message);
+          Array.prototype.forEach.call(listEl.querySelectorAll('button'), function (b) { b.disabled = false; });
+        });
+      }
+
+      btn.addEventListener('click', openPanel);
+      mask.addEventListener('click', closePanel);
+      document.getElementById('mg-mv-close').addEventListener('click', closePanel);
+
+      function mountBtn() { if (document.body && btn && !document.body.contains(btn)) document.body.appendChild(btn); }
+      refreshBtn();
+      window.addEventListener('hashchange', refreshBtn);
+      window.addEventListener('load', refreshBtn);
+      setInterval(refreshBtn, 3000);
+      mountBtn();
+      setInterval(mountBtn, 10000);
+    } catch (e) { /* 静默 */ }
+  })();
+  </script>
+
   </body>
 </html>
