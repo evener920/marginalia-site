@@ -10,10 +10,25 @@
 
 const ORIGIN = 'https://marginalia-blog.pages.dev';
 
+// 旧链接兼容：/archive/* → /index/*
+// 注意：经本 Worker 回源时，Pages 的 _redirects 会被 fetch(redirect:'follow') 吞掉，
+// 301 到不了浏览器，所以在此显式做 301（_redirects 仍保留给直连 pages.dev 的场景兜底）。
+const LEGACY_REDIRECTS = {
+  '/archive': '/index/',
+  '/archive/': '/index/',
+};
+
 export default {
   async fetch(request) {
     try {
       const url = new URL(request.url);
+
+      // 旧索引页路径兼容：直接 301 到新路径（保留查询串）
+      const legacy = LEGACY_REDIRECTS[url.pathname];
+      if (legacy) {
+        return Response.redirect(new URL(legacy + url.search, url.origin).toString(), 301);
+      }
+
       url.hostname = 'marginalia-blog.pages.dev';
       url.protocol = 'https:';
 
