@@ -196,11 +196,25 @@ layout: default
   }
   .video-player--bili iframe { border: 0; }
   .video-player--douyin {
-    aspect-ratio: 9 / 16;                /* 抖音竖屏 */
+    /* 抖音开放播放器总高 = 视频区(9:16) + 底部控制条(~60px)，
+       aspect-ratio 9/16 只够视频区，控制条会被 iframe 裁掉。
+       改用 ::before 撑出「16/9*100% + 60px」高度，任意宽度下控制条都完整。 */
+    aspect-ratio: auto;
     max-width: 380px;
     margin-left: auto; margin-right: auto;
   }
-  .video-player--douyin iframe { border: 0; }
+  .video-player--douyin::before {
+    content: "";
+    display: block;
+    padding-top: calc(16 / 9 * 100% + 60px);
+  }
+  .video-player--douyin iframe {
+    position: absolute;
+    top: 14px; left: 14px;
+    width: calc(100% - 28px);
+    height: calc(100% - 28px);
+    border: 0;
+  }
   .video-player--note {
     aspect-ratio: auto;
     min-height: 220px;
