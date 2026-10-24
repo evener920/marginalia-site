@@ -1011,7 +1011,13 @@
     </script>
   <!-- 部署状态徽章：轮询 GitHub Actions（公开仓库、支持 CORS、无需 token） -->
   <style>
-    #mg-deploy-badge{position:fixed;top:8px;right:8px;z-index:2147483647;background:#fff;border:1px solid #d9dce3;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:6px 10px;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a;max-width:210px;cursor:pointer;user-select:none}
+    #mg-deploy-badge{position:fixed;bottom:8px;right:8px;z-index:2147483647;background:#fff;border:1px solid #d9dce3;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:6px 10px;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a;max-width:210px;cursor:pointer;user-select:none;transition:opacity .2s}
+    #mg-deploy-badge.mg-min .mg-links{display:none}
+    #mg-deploy-badge.mg-min #mg-deploy-text{display:none}
+    #mg-deploy-badge.mg-min{padding:4px 8px}
+    #mg-deploy-badge.mg-min:hover{opacity:1}
+    #mg-deploy-badge .mg-min-btn{margin-left:6px;color:#9aa0aa;font-size:11px;cursor:pointer;user-select:none;line-height:1}
+    #mg-deploy-badge .mg-min-btn:hover{color:#1a1a1a}
     #mg-deploy-badge .mg-row{display:flex;align-items:center;gap:6px}
     #mg-deploy-badge .mg-dot{width:8px;height:8px;border-radius:50%;background:#9aa0aa;flex:0 0 auto}
     #mg-deploy-badge.mg-busy .mg-dot{background:#e0a020;animation:mgpulse 1s infinite}
@@ -1031,13 +1037,14 @@
       var badge = document.createElement('div');
       badge.id = 'mg-deploy-badge';
       badge.innerHTML =
-        '<div class="mg-row"><span class="mg-dot"></span><span id="mg-deploy-text">部署状态检测中…</span></div>' +
+        '<div class="mg-row"><span class="mg-dot"></span><span id="mg-deploy-text">部署状态检测中…</span><span class="mg-min-btn" title="收起/展开">−</span></div>' +
         '<div class="mg-links">' +
           '<a href="https://marginalia-blog.pages.dev/" target="_blank" rel="noopener">pages.dev 即时</a>' +
           '<a href="https://marginalia.201573.xyz/" target="_blank" rel="noopener">自定义域</a>' +
         '</div>';
       function mount() { if (document.body && !document.body.contains(badge)) document.body.appendChild(badge); }
       mount();
+      try { if (localStorage.getItem('mg-deploy-badge-min') === '1') { badge.classList.add('mg-min'); var mb = badge.querySelector('.mg-min-btn'); if (mb) { mb.textContent = '+'; mb.title = '展开'; } } } catch (e2) {}
       function txt() { return document.getElementById('mg-deploy-text'); }
       function rel(iso) {
         var s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -1046,7 +1053,7 @@
         if (s < 86400) return Math.round(s / 3600) + '小时前';
         return Math.round(s / 86400) + '天前';
       }
-      function set(cls, msg) { badge.className = cls; var t = txt(); if (t) t.textContent = msg; }
+      function set(cls, msg) { badge.className = cls + (badge.classList.contains('mg-min') ? ' mg-min' : ''); var t = txt(); if (t) t.textContent = msg; }
       var timer = null;
       function schedule(ms) { if (timer) clearTimeout(timer); timer = setTimeout(poll, ms); }
       function poll() {
@@ -1083,6 +1090,14 @@
       setInterval(mount, 10000); /* 防御：节点万一被移除则重新挂上 */
       badge.addEventListener('click', function (e) {
         if (e.target.tagName === 'A') return;
+        if (e.target.classList && e.target.classList.contains('mg-min-btn')) {
+          badge.classList.toggle('mg-min');
+          e.target.textContent = badge.classList.contains('mg-min') ? '+' : '−';
+          e.target.title = badge.classList.contains('mg-min') ? '展开' : '收起';
+          try { localStorage.setItem('mg-deploy-badge-min', badge.classList.contains('mg-min') ? '1' : '0'); } catch (err) {}
+          return;
+        }
+        if (badge.classList.contains('mg-min')) { /* 收起态点击任意处展开 */ badge.classList.remove('mg-min'); try { localStorage.setItem('mg-deploy-badge-min', '0'); } catch (err) {} return; }
         window.open('https://github.com/' + REPO + '/actions', '_blank');
       });
     } catch (e) { /* 静默 */ }
