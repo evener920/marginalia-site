@@ -1,0 +1,120 @@
+{%- comment -%}
+  单一数据源：全站可索引内容（搜索 + 归档共用）。
+  历史：search.json 与 archive.html 各写一份 capture，已合并到此文件，二处均 `include` 本片段。
+  ★ 约定（以后新增栏目默认操作）：在此加一个 `for` 块即可，搜索与归档自动同步，
+    并到 assets/js/type-meta.js 的 META/ORDER 补一条类型即可，无需改任何 liquid/JS 逻辑。
+{%- endcomment -%}
+{%- capture items -%}
+{%- for post in site.posts -%}
+  {%- assign is_hot = false -%}
+  {%- if post.tags contains 'ai-hot' %}{% assign is_hot = true %}{% endif -%}
+  {
+    "type": {% if is_hot %}"ai-hot"{% else %}"note"{% endif %},
+    "title": {{ post.title | jsonify }},
+    "url": {{ post.url | relative_url | jsonify }},
+    "date": {{ post.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": {{ post.tags | jsonify }},
+    "desc": {{ post.description | default: post.excerpt | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ post.content | strip_html | strip_newlines | truncate: 2600 | jsonify }}
+  },
+{%- endfor -%}
+{%- for v in site.videos -%}
+  {
+    "type": "video",
+    "title": {{ v.title | jsonify }},
+    "url": {{ v.url | relative_url | jsonify }},
+    "date": {{ v.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["视频", "AI 周报"],
+    "desc": {{ v.lede | default: v.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ v.description | strip_html | strip_newlines | truncate: 800 | jsonify }}
+  },
+{%- endfor -%}
+{%- for d in site.docs -%}
+  {
+    "type": "doc",
+    "title": {{ d.title | jsonify }},
+    "url": {{ d.url | relative_url | jsonify }},
+    "date": {{ d.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["文档"],
+    "desc": {{ d.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ d.content | strip_html | strip_newlines | truncate: 1200 | jsonify }}
+  },
+{%- endfor -%}
+{%- for s in site.shujian -%}
+  {
+    "type": "shujian",
+    "title": {{ s.title | jsonify }},
+    "url": {{ s.url | relative_url | jsonify }},
+    "date": {{ s.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["书笺"],
+    "desc": {{ s.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ s.content | strip_html | strip_newlines | truncate: 1200 | jsonify }}
+  },
+{%- endfor -%}
+{%- for p in site.poetry -%}
+  {
+    "type": "poetry",
+    "title": {{ p.title | jsonify }},
+    "url": {{ p.url | relative_url | jsonify }},
+    "date": {{ p.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": {{ p.tags | default: ['诗词'] | jsonify }},
+    "desc": {{ p.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ p.content | strip_html | strip_newlines | truncate: 1200 | jsonify }}
+  },
+{%- endfor -%}
+{%- for sg in site.songs -%}
+  {
+    "type": "songs",
+    "title": {{ sg.title | jsonify }},
+    "url": {{ sg.url | relative_url | jsonify }},
+    "date": {{ sg.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["歌本"],
+    "desc": {{ sg.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ sg.content | strip_html | strip_newlines | truncate: 1200 | jsonify }}
+  },
+{%- endfor -%}
+{%- for du in site.dushu -%}
+  {
+    "type": "dushu",
+    "title": {{ du.title | jsonify }},
+    "url": {{ du.url | relative_url | jsonify }},
+    "date": {{ du.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["读书"],
+    "desc": {{ du.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": {{ du.content | strip_html | strip_newlines | truncate: 1200 | jsonify }}
+  },
+{%- endfor -%}
+{%- for g in site.games -%}
+  {
+    "type": "game",
+    "title": {{ g.title | jsonify }},
+    "url": {{ g.play_url | relative_url | jsonify }},
+    "date": {{ g.date | date: '%Y-%m-%d' | jsonify }},
+    "tags": ["游戏"],
+    "desc": {{ g.description | strip_html | strip_newlines | truncate: 200 | jsonify }},
+    "body": ""
+  },
+{%- endfor -%}
+{%- for s in site.data.showcases -%}
+  {
+    "type": "showcase",
+    "title": {{ s.title | jsonify }},
+    "url": {% if s.external %}{{ s.url | jsonify }}{% else %}{{ s.url | relative_url | jsonify }}{% endif %},
+    "date": {{ s.date | jsonify }},
+    "tags": {{ s.tags | jsonify }},
+    "desc": {{ s.description | jsonify }},
+    "body": ""
+  },
+{%- endfor -%}
+{%- for a in site.data.apps -%}
+  {
+    "type": "app",
+    "title": {{ a.title | jsonify }},
+    "url": {{ a.url | jsonify }},
+    "date": {{ a.date | jsonify }},
+    "tags": {{ a.tags | jsonify }},
+    "desc": {{ a.description | jsonify }},
+    "body": ""
+  },
+{%- endfor -%}
+{%- endcapture -%}{{ items | strip }}

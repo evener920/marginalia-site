@@ -5,15 +5,8 @@
   'use strict';
 
   var BASE = document.documentElement.getAttribute('data-baseurl') || '';
-  var TYPE_META = {
-    'note':     { label: '批注',     cls: 'note' },
-    'ai-hot':   { label: 'AI Hot',  cls: 'hot' },
-    'video':    { label: '视频',     cls: 'video' },
-    'game':     { label: '游戏',     cls: 'game' },
-    'showcase': { label: 'Showcase', cls: 'show' },
-    'app':      { label: 'App',      cls: 'app' }
-  };
-  var TYPE_ORDER = ['note', 'showcase', 'app', 'video', 'game', 'ai-hot'];
+  var TYPE_META = (window.MG_TYPES && window.MG_TYPES.META) || {};
+  var TYPE_ORDER = (window.MG_TYPES && window.MG_TYPES.ORDER) || [];
 
   var index = null, loading = null;
   var modal, input, results, hint;
@@ -169,7 +162,7 @@
       '<div class="ms-modal" role="dialog" aria-modal="true" aria-label="全站搜索">' +
         '<div class="ms-head">' +
           '<span class="ms-glyph">¶</span>' +
-          '<input class="ms-input" type="search" placeholder="搜索批注、晨报、视频、游戏、应用…" ' +
+          '<input class="ms-input" type="search" placeholder="搜索批注、视频、文档、书笺、诗词、歌本、读书…" ' +
                  'autocomplete="off" autocorrect="off" spellcheck="false">' +
           '<button class="ms-close" aria-label="关闭">Esc</button>' +
         '</div>' +

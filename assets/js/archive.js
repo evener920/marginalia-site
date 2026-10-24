@@ -8,15 +8,8 @@
   var items = JSON.parse(raw.textContent).filter(Boolean);
   items.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
 
-  var TYPE_META = {
-    'note':     { label: '批注',     cls: 'note' },
-    'ai-hot':   { label: 'AI Hot',  cls: 'hot' },
-    'video':    { label: '视频',     cls: 'video' },
-    'game':     { label: '游戏',     cls: 'game' },
-    'showcase': { label: 'Showcase', cls: 'show' },
-    'app':      { label: 'App',      cls: 'app' }
-  };
-  var TYPE_ORDER = ['note', 'ai-hot', 'video', 'game', 'showcase', 'app'];
+  var TYPE_META = (window.MG_TYPES && window.MG_TYPES.META) || {};
+  var TYPE_ORDER = (window.MG_TYPES && window.MG_TYPES.ORDER) || [];
   var HOUSEKEEPING = { 'ai-hot': 1, 'ai-morning-post': 1, 'daily': 1 };
 
   var state = { type: '', tag: '' };

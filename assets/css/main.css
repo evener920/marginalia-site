@@ -35,6 +35,11 @@
   --c-game:  #44763a;
   --c-show:  #6b5435;
   --c-app:   #2e7a72;
+  --c-doc:     #5a4b8b;
+  --c-shujian: #3f5a4c;
+  --c-poetry:  #9c3b6e;
+  --c-songs:   #1f6f8b;
+  --c-dushu:   #8a6d2f;
 }
 
 /* ---- 夜读 · dark theme ---- */
@@ -60,6 +65,11 @@
   --c-game:  #8fbd80;
   --c-show:  #c4a878;
   --c-app:   #82c2b9;
+  --c-doc:     #b3a6dd;
+  --c-shujian: #8fb3a3;
+  --c-poetry:  #d98ab0;
+  --c-songs:   #8fc7da;
+  --c-dushu:   #d4b878;
 }
 body, .site-header, .site-footer { transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
 
@@ -1204,6 +1214,11 @@ li > ul, li > ol { margin-top: .35em; margin-bottom: .35em; }
 .ms-badge--game  { color: var(--c-game);  background: color-mix(in srgb, var(--c-game) 12%, transparent); }
 .ms-badge--show  { color: var(--c-show);  background: color-mix(in srgb, var(--c-show) 12%, transparent); }
 .ms-badge--app   { color: var(--c-app);   background: color-mix(in srgb, var(--c-app) 12%, transparent); }
+.ms-badge--doc     { color: var(--c-doc);     background: color-mix(in srgb, var(--c-doc) 12%, transparent); }
+.ms-badge--shujian { color: var(--c-shujian); background: color-mix(in srgb, var(--c-shujian) 12%, transparent); }
+.ms-badge--poetry  { color: var(--c-poetry);  background: color-mix(in srgb, var(--c-poetry) 12%, transparent); }
+.ms-badge--songs   { color: var(--c-songs);   background: color-mix(in srgb, var(--c-songs) 12%, transparent); }
+.ms-badge--dushu   { color: var(--c-dushu);   background: color-mix(in srgb, var(--c-dushu) 12%, transparent); }
 
 /* ---- 搜索 modal ---- */
 body.ms-lock { overflow: hidden; }
