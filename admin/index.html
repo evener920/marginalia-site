@@ -1466,6 +1466,12 @@
       });
       delBtn.addEventListener('click', deleteSelected);
 
+      function styleBtn() {
+        /* v4 双保险：样式同时写进 <style> 和 JS 内联——即使样式表被缓存/覆盖，
+           按钮也一定是左下角小药丸（用户反馈过按钮落到浏览器默认样式） */
+        btn.style.cssText = 'position:fixed;left:14px;bottom:16px;z-index:2147483646;background:#d23b3b;color:#fff;border:none;border-radius:999px;box-shadow:0 2px 10px rgba(210,59,59,.35);padding:9px 18px;font:600 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;cursor:pointer;user-select:none;letter-spacing:.5px;display:none';
+      }
+      styleBtn();
       function mountBtn() { if (document.body && btn && !document.body.contains(btn)) document.body.appendChild(btn); }
       function tryShow() { if (window.CMS) btn.style.display = 'block'; }
       tryShow();
