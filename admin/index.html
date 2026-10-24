@@ -786,6 +786,23 @@
     </script>
     <script>
     /* ============================================================
+       编辑器表格边框软化：Decap 内置表格样式是 td/th 黑框
+       （border:1px solid black，整个 bundle 里唯一的黑色边框）。
+       正文里一旦被带入表格节点（典型：从网页粘贴），编辑器就
+       画出一圈黑框，且光标易困在空表格里看似无法输入。
+       这里把编辑器内表格边框改为浅灰，视觉融入整体风格。
+       ============================================================ */
+    (function () {
+      var s = document.createElement('style');
+      s.textContent =
+        '[data-slate-editor="true"] table td,' +
+        '[data-slate-editor="true"] table th' +
+        '{border:1px solid #d9dce3!important}';
+      document.head.appendChild(s);
+    })();
+    </script>
+    <script>
+    /* ============================================================
        集合列表分页 v3：Decap 列表是「每次加载 20 条 + 滚动哨兵
        （react-waypoint）续载」的懒加载，无配置级分页。此脚本做
        客户端分页（每页 20，与后端分块对齐）：
