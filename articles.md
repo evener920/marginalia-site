@@ -118,7 +118,7 @@ wide: true
 
   /* —— 网格视图（16:9 题图 + 等高卡片，居中换行）—— */
   .articles-list.is-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
+    display: flex; flex-wrap: wrap; justify-content: flex-start;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .articles-list.is-grid > li {

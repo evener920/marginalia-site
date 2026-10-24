@@ -97,7 +97,7 @@ wide: true
   @media (max-width: 720px) { .v-pager-info { margin-left: 0; width: 100%; text-align: center; } }
 
   .songs-list.is-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
+    display: flex; flex-wrap: wrap; justify-content: flex-start;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .songs-list.is-grid > li {

@@ -100,7 +100,7 @@ wide: true
 
   /* —— 网格视图（小书架式：矮卡片、小书影、等高对齐）—— */
   .shujian-list.is-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
+    display: flex; flex-wrap: wrap; justify-content: flex-start;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .shujian-list.is-grid > li {

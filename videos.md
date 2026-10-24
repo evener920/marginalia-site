@@ -199,7 +199,7 @@ wide: true
   .mg-view-toggle button.active { background: var(--accent); color: #fbf8f1; border-color: var(--accent); }
 
   .videos-list.is-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
+    display: flex; flex-wrap: wrap; justify-content: flex-start;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .videos-list.is-grid > li {
