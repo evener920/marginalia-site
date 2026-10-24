@@ -20,7 +20,7 @@ layout: default
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
         全站搜索 <kbd>Ctrl K</kbd>
       </button>
-      <a class="hero-btn" href="{{ '/archive/' | relative_url }}">浏览索引 →</a>
+      <a class="hero-btn" href="{{ '/index/' | relative_url }}">浏览索引 →</a>
     </div>
     <ul class="hero-stats reveal" style="--d:4" role="list">
       <li><b>{{ note_count }}</b> 篇文章</li>
@@ -59,7 +59,7 @@ layout: default
           </time>
           {% if post.tags and post.tags.size > 0 %}
           <ul class="tags" role="list">
-            {% for t in post.tags %}<li><a href="{{ '/archive/' | relative_url }}?tag={{ t | uri_escape }}">#{{ t }}</a></li>{% endfor %}
+            {% for t in post.tags %}<li><a href="{{ '/index/' | relative_url }}?tag={{ t | uri_escape }}">#{{ t }}</a></li>{% endfor %}
           </ul>
           {% endif %}
         </aside>
