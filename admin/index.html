@@ -1225,9 +1225,18 @@
         setTimeout(function () { try { t.remove(); } catch (e) {} }, 3000);
       }
       function getToken() {
-        var b = window.CMS && window.CMS.getBackend && window.CMS.getBackend();
-        if (!b) return Promise.reject(new Error('CMS 未就绪'));
-        return Promise.resolve(b.getToken ? b.getToken() : null);
+        /* v2：Decap 的 CMS.getBackend(name) 返回的是注册的后端"类"而非已登录实例，
+           无参调用为 undefined——旧写法永远取不到 token。
+           正确来源：localStorage["decap-cms-user"]（JSON，含 access_token/token）。 */
+        return new Promise(function (resolve, reject) {
+          try {
+            var raw = window.localStorage.getItem('decap-cms-user');
+            var u = raw ? JSON.parse(raw) : null;
+            var tok = u && (u.access_token || u.token);
+            if (tok) return resolve(tok);
+          } catch (e) { /* fallthrough */ }
+          reject(new Error('未取到 GitHub 登录凭证（请确认已在后台登录）'));
+        });
       }
       function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
       function gh(path, opts) {
@@ -1257,13 +1266,13 @@
           return Promise.all(names.map(function (name) {
             var folder = map[name];
             return gh(encPath(folder) + '?ref=' + BRANCH).then(function (r) {
-              if (!r.ok) return { name: name, folder: folder, files: [] };
+              if (!r.ok) return { name: name, folder: folder, files: [], error: r.status };
               return r.json().then(function (arr) {
                 var files = (Array.isArray(arr) ? arr : []).filter(function (x) { return x.type === 'file'; })
                   .map(function (x) { return { name: x.name, path: x.path, sha: x.sha }; });
                 return { name: name, folder: folder, files: files };
               });
-            }).catch(function () { return { name: name, folder: folder, files: [] }; });
+            }).catch(function (err) { return { name: name, folder: folder, files: [], error: (err && err.message) || 'network' }; });
           })).then(function (res) {
             data = {};
             res.forEach(function (c) { data[c.name] = c; });
@@ -1280,6 +1289,14 @@
           var h = document.createElement('h4');
           h.innerHTML = '<span>' + name + '</span><span class="mg-count">(' + c.files.length + ' 个)</span>';
           wrap.appendChild(h);
+          if (c.error) {
+            var errEl = document.createElement('div'); errEl.className = 'mg-empty';
+            errEl.style.color = '#b03030';
+            errEl.textContent = c.error === 401 || c.error === 403
+              ? '（加载失败 ' + c.error + '：登录凭证无效，请刷新后台重新登录 GitHub）'
+              : '（加载失败：' + c.error + '）';
+            wrap.appendChild(errEl); bodyEl.appendChild(wrap); return;
+          }
           if (!c.files.length) {
             var empty = document.createElement('div'); empty.className = 'mg-empty'; empty.textContent = '（空）';
             wrap.appendChild(empty); bodyEl.appendChild(wrap); return;
