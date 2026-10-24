@@ -1000,5 +1000,84 @@
       } catch (e) { /* 静默 */ }
     });
     </script>
+  <!-- 部署状态徽章：轮询 GitHub Actions（公开仓库、支持 CORS、无需 token） -->
+  <style>
+    #mg-deploy-badge{position:fixed;top:8px;right:8px;z-index:2147483647;background:#fff;border:1px solid #d9dce3;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:6px 10px;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#1a1a1a;max-width:210px;cursor:pointer;user-select:none}
+    #mg-deploy-badge .mg-row{display:flex;align-items:center;gap:6px}
+    #mg-deploy-badge .mg-dot{width:8px;height:8px;border-radius:50%;background:#9aa0aa;flex:0 0 auto}
+    #mg-deploy-badge.mg-busy .mg-dot{background:#e0a020;animation:mgpulse 1s infinite}
+    #mg-deploy-badge.mg-ok .mg-dot{background:#2e9e5b}
+    #mg-deploy-badge.mg-fail .mg-dot{background:#d23b3b}
+    #mg-deploy-badge.mg-err .mg-dot{background:#9aa0aa}
+    @keyframes mgpulse{0%,100%{opacity:1}50%{opacity:.35}}
+    #mg-deploy-badge .mg-links{margin-top:5px;display:flex;gap:10px;font-size:11px}
+    #mg-deploy-badge a{color:#3a6ea5;text-decoration:none}
+    #mg-deploy-badge a:hover{text-decoration:underline}
+  </style>
+  <script>
+  (function () {
+    try {
+      var REPO = 'evener920/marginalia-site';
+      var API = 'https://api.github.com/repos/' + REPO + '/actions/runs?per_page=1';
+      var badge = document.createElement('div');
+      badge.id = 'mg-deploy-badge';
+      badge.innerHTML =
+        '<div class="mg-row"><span class="mg-dot"></span><span id="mg-deploy-text">部署状态检测中…</span></div>' +
+        '<div class="mg-links">' +
+          '<a href="https://marginalia-blog.pages.dev/" target="_blank" rel="noopener">pages.dev 即时</a>' +
+          '<a href="https://marginalia.201573.xyz/" target="_blank" rel="noopener">自定义域</a>' +
+        '</div>';
+      function mount() { if (document.body && !document.body.contains(badge)) document.body.appendChild(badge); }
+      mount();
+      function txt() { return document.getElementById('mg-deploy-text'); }
+      function rel(iso) {
+        var s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+        if (s < 60) return Math.round(s) + '秒前';
+        if (s < 3600) return Math.round(s / 60) + '分钟前';
+        if (s < 86400) return Math.round(s / 3600) + '小时前';
+        return Math.round(s / 86400) + '天前';
+      }
+      function set(cls, msg) { badge.className = cls; var t = txt(); if (t) t.textContent = msg; }
+      var timer = null;
+      function schedule(ms) { if (timer) clearTimeout(timer); timer = setTimeout(poll, ms); }
+      function poll() {
+        fetch(API, { headers: { 'Accept': 'application/vnd.github+json' } })
+          .then(function (r) {
+            if (r.status === 403) { set('mg-err', '状态未知(限流)'); schedule(120000); return null; }
+            if (!r.ok) { set('mg-err', '状态获取失败'); schedule(120000); return null; }
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d || !d.workflow_runs || !d.workflow_runs.length) { set('mg-err', '无部署记录'); schedule(120000); return; }
+            var run = d.workflow_runs[0];
+            if (run.status === 'in_progress' || run.status === 'queued') {
+              set('mg-busy', '部署中… (' + rel(run.created_at) + ' 触发)');
+              schedule(8000);
+            } else if (run.status === 'completed') {
+              if (run.conclusion === 'success') {
+                set('mg-ok', '已上线 ✓ · ' + rel(run.updated_at));
+              } else if (run.conclusion === 'failure' || run.conclusion === 'cancelled' || run.conclusion === 'timed_out') {
+                set('mg-fail', '部署失败 ✗');
+              } else {
+                set('mg-err', '部署状态: ' + run.conclusion);
+              }
+              schedule(75000);
+            } else {
+              set('mg-err', '状态: ' + run.status);
+              schedule(75000);
+            }
+          })
+          .catch(function () { set('mg-err', '网络错误'); schedule(120000); });
+      }
+      poll();
+      window.addEventListener('load', mount);
+      setInterval(mount, 10000); /* 防御：节点万一被移除则重新挂上 */
+      badge.addEventListener('click', function (e) {
+        if (e.target.tagName === 'A') return;
+        window.open('https://github.com/' + REPO + '/actions', '_blank');
+      });
+    } catch (e) { /* 静默 */ }
+  })();
+  </script>
   </body>
 </html>
