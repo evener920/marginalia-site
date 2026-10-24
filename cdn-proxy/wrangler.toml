@@ -1,0 +1,16 @@
+name = "marginalia-proxy"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# 把自定义域 marginalia.201573.xyz 的流量回源到 marginalia-blog.pages.dev
+# （GitHub Actions 构建、~50s 生效的项目），从而绕开 marginalia-git（原生 Git 集成、
+# 构建慢 + 自定义域别名推广慢）带来的 ~4 分钟延迟。
+#
+# 附加方式：用「区域路由（zone route）」而非「自定义域」，这样不需要抢占/删除
+# 该主机名已有的 DNS 记录（当前 token 无 dns_records 权限），只要 DNS 能解析到
+# Cloudflare 边缘即可由本 Worker 接管回源。
+#
+# 回退：删除下方这条路由即可，marginalia.201573.xyz 恢复由其现有 DNS 指向的服务。
+routes = [
+  { pattern = "marginalia.201573.xyz/*", zone_name = "201573.xyz" }
+]

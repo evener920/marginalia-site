@@ -30,24 +30,38 @@ layout: default
       {% assign douyin_vid = douyin_raw %}
     {% endif %}
     {% if douyin_is_note and douyin_vid == "" %}{% assign douyin_is_note = false %}{% endif %}
+    {% assign yt_raw = page.youtube_id | strip %}
+    {% assign youtube_vid = "" %}
+    {% if yt_raw contains "youtu.be/" %}
+      {% assign _p = yt_raw | split: "youtu.be/" %}{% assign youtube_vid = _p[1] | split: "?" | first %}
+    {% elsif yt_raw contains "watch?v=" %}
+      {% assign _p = yt_raw | split: "watch?v=" %}{% assign youtube_vid = _p[1] | split: "&" | first %}
+    {% elsif yt_raw contains "embed/" %}
+      {% assign _p = yt_raw | split: "embed/" %}{% assign youtube_vid = _p[1] | split: "?" | first %}
+    {% else %}
+      {% assign youtube_vid = yt_raw %}
+    {% endif %}
 
     {% assign _has_video = false %}
     {% if page.stream_id and page.stream_id != "" %}{% assign _has_video = true %}
     {% elsif page.bvid and page.bvid != "" %}{% assign _has_video = true %}
     {% elsif douyin_vid != "" %}{% assign _has_video = true %}
+    {% elsif youtube_vid != "" %}{% assign _has_video = true %}
     {% elsif page.video_url and page.video_url != "" %}{% assign _has_video = true %}
     {% elsif page.video and page.video != "" %}{% assign _has_video = true %}
     {% endif %}
 
     {% if _has_video %}
     <section class="media-media">
-      <div class="video-player{% if page.stream_id and page.stream_id != "" %} video-player--stream{% elsif page.bvid and page.bvid != "" %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid != "" %} video-player--douyin{% elsif (page.video_url and page.video_url != "") or (page.video and page.video != "") %} video-player--file{% endif %}">
+      <div class="video-player{% if page.stream_id and page.stream_id != "" %} video-player--stream{% elsif page.bvid and page.bvid != "" %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid != "" %} video-player--douyin{% elsif youtube_vid != "" %} video-player--youtube{% elsif (page.video_url and page.video_url != "") or (page.video and page.video != "") %} video-player--file{% endif %}">
         {% if page.stream_id and page.stream_id != "" %}
           <stream src="{{ page.stream_id }}" controls></stream>
         {% elsif page.bvid and page.bvid != "" %}
           <iframe src="//player.bilibili.com/player.html?bvid={{ page.bvid }}&autoplay=0&high_quality=1&danmaku=0" scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer" loading="lazy"></iframe>
         {% elsif douyin_vid != "" and douyin_is_note == false %}
           <iframe src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0" scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer" loading="lazy"></iframe>
+        {% elsif youtube_vid != "" %}
+          <iframe src="https://www.youtube.com/embed/{{ youtube_vid }}?rel=0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen="true" referrerpolicy="no-referrer" loading="lazy"></iframe>
         {% elsif douyin_vid != "" and douyin_is_note %}
           <div class="video-note-card">
             <p class="video-note-icon">📄</p>
@@ -65,6 +79,8 @@ layout: default
         <p class="video-bili-link">视频托管于 B 站 · <a href="https://www.bilibili.com/video/{{ page.bvid }}" target="_blank" rel="noopener">在 B 站打开</a></p>
       {% elsif douyin_vid != "" %}
         <p class="video-bili-link">{% if douyin_is_note %}图文作品托管于 抖音 ·{% else %}视频托管于 抖音 ·{% endif %}<a href="https://www.douyin.com/{% if douyin_is_note %}note{% else %}video{% endif %}/{{ douyin_vid }}" target="_blank" rel="noopener">在抖音打开</a></p>
+      {% elsif youtube_vid != "" %}
+        <p class="video-bili-link">视频托管于 YouTube · <a href="https://www.youtube.com/watch?v={{ youtube_vid }}" target="_blank" rel="noopener">在 YouTube 打开</a></p>
       {% elsif page.douyin_id and page.douyin_id != "" %}
         <p class="video-bili-link">视频托管于 抖音 · <a href="{{ page.douyin_id }}" target="_blank" rel="noopener">在抖音打开（外链）</a></p>
       {% elsif page.video_url and page.video_url != "" %}
@@ -124,6 +140,8 @@ layout: default
   }
   .video-player--douyin::before { content: ""; display: block; padding-top: calc(16 / 9 * 100% + 60px); }
   .video-player--douyin iframe { position: absolute; top: 14px; left: 14px; width: calc(100% - 28px); height: calc(100% - 28px); border: 0; }
+  .video-player--youtube { max-width: 820px; margin-left: auto; margin-right: auto; }
+  .video-player--youtube iframe { border: 0; }
   .video-player--note { aspect-ratio: auto; min-height: 220px; display: flex; align-items: center; justify-content: center; }
   .video-note-card { text-align: center; padding: 1.6rem 1rem; max-width: 40ch; }
   .video-note-icon { font-size: 2.2rem; margin: 0 0 0.6rem; }

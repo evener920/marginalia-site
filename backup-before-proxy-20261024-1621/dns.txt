@@ -1,0 +1,2 @@
+== DNS 记录（正确子命令）
+  wrangler types [path]           📝 Generate types from your Worker configuration

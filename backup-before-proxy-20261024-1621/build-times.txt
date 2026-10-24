@@ -1,0 +1,11 @@
+== 两项目当前 deployment 时间对比
+[marginalia-blog]
+│ Id                                   │ Environment │ Branch │ Source  │ Deployment                                 │ Status         │ Build                                                                                                                        │
+│ d9539714-7e2e-4259-a9f4-e7352cc5aec9 │ Production  │ main   │ 327c605 │ https://d9539714.marginalia-blog.pages.dev │ 12 minutes ago │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-blog/d9539714-7e2e-4259-a9f4-e7352cc5aec9 │
+│ 329c36b3-a4a7-4bd2-a7d0-9787cee03040 │ Production  │ main   │ 7aef298 │ https://329c36b3.marginalia-blog.pages.dev │ 24 minutes ago │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-blog/329c36b3-a4a7-4bd2-a7d0-9787cee03040 │
+│ e9647b56-748b-4aea-8ae1-af9091e37f8a │ Production  │ main   │ 587f3c1 │ https://e9647b56.marginalia-blog.pages.dev │ 25 minutes ago │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-blog/e9647b56-748b-4aea-8ae1-af9091e37f8a │
+[marginalia-git]
+│ Id                                   │ Environment │ Branch │ Source  │ Deployment                                │ Status         │ Build                                                                                                                       │
+│ 5238680f-9710-4df9-aec2-024290ebaf76 │ Production  │ main   │ 327c605 │ https://5238680f.marginalia-git.pages.dev │ 8 minutes ago  │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-git/5238680f-9710-4df9-aec2-024290ebaf76 │
+│ 65f353f2-ef7c-407c-b944-2b7ea58c40ba │ Production  │ main   │ 7aef298 │ https://65f353f2.marginalia-git.pages.dev │ 16 minutes ago │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-git/65f353f2-ef7c-407c-b944-2b7ea58c40ba │
+│ 3f5648ea-c13f-4ab2-ae52-74c1f05e99d7 │ Production  │ main   │ 587f3c1 │ https://3f5648ea.marginalia-git.pages.dev │ 20 minutes ago │ https://dash.cloudflare.com/82129ffe005dfd5010505adf73de06cb/pages/view/marginalia-git/3f5648ea-c13f-4ab2-ae52-74c1f05e99d7 │

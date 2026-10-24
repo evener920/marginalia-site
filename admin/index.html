@@ -1103,6 +1103,77 @@
     } catch (e) { /* 静默 */ }
   })();
   </script>
+  <!-- 视频来源下拉：Decap 3.17.1 不支持 show_if，这里用 JS 按 video_source 显示/隐藏对应输入框。
+       兜底：找不到控件就全显示，绝不破坏现有条目编辑。选了某来源会清空其它来源输入框，避免页面误用错误来源。 -->
+  <script>
+  (function () {
+    try {
+      var LABELS = {
+        bili:    ['B站 BV 号'],
+        douyin:  ['抖音视频', '抖音作品类型'],
+        youtube: ['YouTube 链接'],
+        file:    ['R2 视频 mp4 直链']
+      };
+      var SOURCE_LABEL = '视频来源';
+      function norm(s) { return (s || '').trim(); }
+      function findWrap(labelText) {
+        var els = document.querySelectorAll('label');
+        for (var i = 0; i < els.length; i++) {
+          if (norm(els[i].textContent) === labelText) {
+            var w = els[i].parentElement, tries = 0;
+            while (w && tries < 4) {
+              if (w.querySelector('input,select,textarea')) return w;
+              w = w.parentElement; tries++;
+            }
+            return els[i].parentElement;
+          }
+        }
+        return null;
+      }
+      function findSourceSelect() {
+        var els = document.querySelectorAll('label');
+        for (var i = 0; i < els.length; i++) {
+          if (norm(els[i].textContent) === SOURCE_LABEL) {
+            var wrap = els[i].parentElement;
+            var sel = wrap ? wrap.querySelector('select') : null;
+            if (sel) return sel;
+          }
+        }
+        return null;
+      }
+      function setNativeValue(el, val) {
+        try {
+          var proto = el.tagName === 'SELECT' ? HTMLSelectElement.prototype : (el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype);
+          var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+          setter.call(el, val);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (e) { el.value = val; }
+      }
+      var allWraps = {};
+      for (var k in LABELS) { LABELS[k].forEach(function (l) { allWraps[l] = findWrap(l); }); }
+      function apply() {
+        var sel = findSourceSelect();
+        if (!sel) return;
+        var val = sel.value;
+        if (!val) { for (var l0 in allWraps) { if (allWraps[l0]) allWraps[l0].style.display = ''; } return; }
+        var show = LABELS[val] || [];
+        for (var l in allWraps) {
+          var w = allWraps[l];
+          if (!w) continue;
+          if (show.indexOf(l) !== -1) { w.style.display = ''; }
+          else { w.style.display = 'none'; var c = w.querySelector('input,select,textarea'); if (c && c.value !== '') setNativeValue(c, ''); }
+        }
+      }
+      apply();
+      var _t = null;
+      new MutationObserver(function () { if (_t) clearTimeout(_t); _t = setTimeout(apply, 150); })
+        .observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
+      var _s = findSourceSelect();
+      if (_s) _s.addEventListener('change', apply);
+    } catch (e) { /* 静默：兜底为全显示 */ }
+  })();
+  </script>
   <!-- 块10 v2：粘贴消毒——富文本里的 <img> 会让 Decap 3.17.1 崩溃
        根因（bundle+源码已核实）：粘贴 HTML 反序列化 IMG 分支生成 {type:"image", url}
        而渲染器 kte 解构 e.element.data（undefined → TypeError）。

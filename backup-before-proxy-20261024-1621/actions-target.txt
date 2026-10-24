@@ -1,0 +1,2 @@
+== Actions 部署目标（仓库 vars）
+{"variables":[{"name":"CLOUDFLARE_PAGES_PROJECT","value":"marginalia-blog","created_at":"2026-10-20T15:13:57Z","updated_at":"2026-10-20T15:13:57Z"}],"total_count":1}

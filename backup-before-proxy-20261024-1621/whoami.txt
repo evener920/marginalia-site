@@ -1,0 +1,7 @@
+== whoami (账号/邮箱，隐去 token)
+👋 You are logged in with an OAuth Token, associated with the email xiaoluo920@gmail.com.
+🔐 Credentials are stored in: /Users/evener920/.wrangler/config/default.toml
+│ Account Name │ Account ID                       │
+- account (read)
+- email_routing (write)
+- email_sending (write)
