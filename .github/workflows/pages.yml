@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write   # 末尾「Post commit status for Decap」需要写 legacy commit status
 
 # 单 job：build + deploy 同跑在一个 runner 上，省掉「上传 artifact → 第二个 runner 冷启动 → 下载 artifact」
 # 这段纯搬运（旧版拆成 build/deploy 两个 job），实测每次白花 ~15–25s + 第二次 runner 排队风险。
@@ -45,3 +46,24 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy _site --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'marginalia-blog' }} --commit-dirty=true
+
+      # 补写旧版 commit status：GitHub Actions 只写 check-runs，不写 legacy status，
+      # 而 Decap 后台顶栏的「点击以预览」按钮读的是 legacy status —— 空状态恒为 pending，
+      # 按钮就永远转圈点不动。这里部署完成后补一条 state=success、target_url=站点首页，
+      # 按钮即变为可点的「查看预览」（新标签打开站点）。
+      - name: Post commit status for Decap
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            STATE=success; DESC="已上线 marginalia.201573.xyz"
+          else
+            STATE=failure; DESC="部署失败，详见 Actions"
+          fi
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d "{\"state\":\"$STATE\",\"context\":\"deploy\",\"target_url\":\"https://marginalia.201573.xyz/\",\"description\":\"$DESC\"}" \
+            > /dev/null && echo "commit status posted: $STATE"

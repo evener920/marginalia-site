@@ -92,6 +92,7 @@ collections:
       - { name: title, label: "标题", widget: string }
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: pdf_url, label: "R2 PDF 直链", widget: string, hint: "填 R2 里 PDF 的公开链接，页面内嵌翻阅，文件不进 git" }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "分类标签，每行一个" }
       - { name: body, label: "正文（可留空）", widget: markdown, required: false }
 
   # ============ 书笺：标题 + 书影 + 笺注正文 ============
@@ -110,6 +111,7 @@ collections:
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: author, label: "原作者（可留空）", widget: string, required: false }
       - { name: description, label: "一句话笺注（可留空）", widget: string, required: false }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "分类标签，每行一个" }
       - { name: audio_url, label: "音频直链（mp3/ogg）", widget: string, required: false, hint: "填音频的公开直链（如 R2 桶里的 mp3/ogg），页面出现播放器，文件不进 git" }
       - { name: cover, label: "书影 / 封面图", widget: image, required: false }
       - { name: body, label: "正文（笺注内容）", widget: markdown }
@@ -130,6 +132,7 @@ collections:
       - { name: date, label: "日期", widget: datetime, default: "{{now}}", format: "YYYY-MM-DD HH:mm:ss Z" }
       - { name: author, label: "原作者（可留空）", widget: string, required: false }
       - { name: description, label: "一句话简介（可留空）", widget: string, required: false }
+      - { name: tags, label: "标签（可留空）", widget: list, required: false, default: [], hint: "分类标签，每行一个" }
       - { name: cover, label: "封面图", widget: image, required: false }
       - { name: body, label: "正文（读书笔记）", widget: markdown }
 
