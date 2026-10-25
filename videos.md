@@ -225,10 +225,6 @@ wide: true
   .videos-list.is-grid .mg-card-react { display: none; }
 </style>
 
-每周一条，把全球 AI 大事讲给一线工程师听。脚本生成 — MiniMax TTS 主播口播 + Hailuo AI B-roll + Remotion 动效 + 字幕条 + 背景音乐。不复述新闻，只挑会改变你写代码方式的更新。
-
-另一部分是「抖音收藏」——从我的抖音收藏夹整体迁移过来的知识类短片，涵盖哲学、认知、教育、科普与传统文化，按原发布时间排序。
-
 {% assign videos = site.videos | sort: 'date' | reverse %}
 {% if videos.size == 0 %}
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
