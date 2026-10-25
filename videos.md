@@ -225,6 +225,8 @@ wide: true
   .videos-list.is-grid .mg-card-react { display: none; }
 </style>
 
+这里收录两类视频：每周一期的 AI 周报，以及从抖音收藏夹迁来的哲学、认知、科普与传统文化短片。
+
 {% assign videos = site.videos | sort: 'date' | reverse %}
 {% if videos.size == 0 %}
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
