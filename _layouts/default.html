@@ -47,7 +47,7 @@
           <span class="theme-icon theme-icon--dark" aria-hidden="true">☀</span>
         </button>
         <button class="nav-btn nav-music" type="button" data-ambient
-                data-src="{{ '/assets/img/site/ambient-loop.mp3' | relative_url }},{{ '/assets/img/site/ambient-loop-2.m4a' | relative_url }}"
+                data-src="{{ '/assets/img/site/ambient-loop-2.m4a' | relative_url }}"
                 aria-label="夜读伴奏" title="夜读伴奏（播放列表）">
           <span class="ambient-glyph" aria-hidden="true">♪</span>
         </button>
@@ -73,7 +73,7 @@
         {%- if site.author.url and site.author.url != "" %}（<a href="{{ site.author.url }}">主页</a>）{% endif %}
         · Feed（<a href="{{ '/feed.xml' | relative_url }}">全部</a> / <a href="{{ '/feed-notes.xml' | relative_url }}">仅批注</a>）
         ·         <button class="ambient-btn" type="button" data-ambient
-                  data-src="{{ '/assets/img/site/ambient-loop.mp3' | relative_url }},{{ '/assets/img/site/ambient-loop-2.m4a' | relative_url }}">
+                  data-src="{{ '/assets/img/site/ambient-loop-2.m4a' | relative_url }}">
             <span class="ambient-glyph" aria-hidden="true">♪</span> 夜读伴奏
           </button>
         <br>
