@@ -52,6 +52,24 @@ def find_md(vid):
     return None
 
 
+def build_id_index():
+    """一次性扫描 _videos，建立 douyin_id -> md 路径 的索引，避免 O(n*m) 反复全扫。"""
+    idx = {}
+    if not os.path.isdir(VIDEOS_DIR):
+        return idx
+    for fn in os.listdir(VIDEOS_DIR):
+        if not fn.endswith(".md"):
+            continue
+        try:
+            txt = open(os.path.join(VIDEOS_DIR, fn), encoding="utf-8").read(400)
+        except Exception:
+            continue
+        m = re.search(r"douyin_id:\s*(\d{15,})", txt)
+        if m:
+            idx[m.group(1)] = os.path.join(VIDEOS_DIR, fn)
+    return idx
+
+
 def has_poster(md):
     txt = open(md, encoding="utf-8").read()
     # 非注释的 poster: 行
@@ -103,10 +121,12 @@ def main():
     dry = "--dry-run" in args
     force = "--force" in args
     print(f"映射条目: {len(mapping)}")
+    id_index = build_id_index()
+    print(f"_videos 中已建索引: {len(id_index)} 个")
 
     done = skip = fail = 0
     for vid, url in mapping.items():
-        md = find_md(vid)
+        md = id_index.get(vid)
         if not md:
             print(f"  ? 找不到 douyin_id={vid} 对应的 md，跳过")
             fail += 1
