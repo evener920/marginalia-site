@@ -21,7 +21,10 @@ jobs:
   build-deploy:
     # 采集器 bot 的「自动回填抖音封面」提交只改缩略图/封面，无需即时上线，跳过整条流水线。
     if: ${{ !contains(github.event.head_commit.message, '自动回填') }}
-    runs-on: ubuntu-latest
+    # 2026-10-29 起 ubuntu-latest 升级为 ubuntu-26.04，已不再提供 Ruby 3.1.7，
+    # 导致 ruby/setup-ruby 拉 3.1.x 时 404 失败。钉到 ubuntu-24.04（Ruby 3.1 仍可用，
+    # 也是本次失败前构建一直通过的镜像），保持 .ruby-version=3.1 不变。
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
