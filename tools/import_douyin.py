@@ -55,9 +55,14 @@ def resolve_id(raw):
 
 
 def slugify(title):
-    s = re.sub(r'[\\/:*?"<>|#]+', "", title).strip()
-    s = re.sub(r"\s+", "-", s)
-    return (s[:60] or "douyin-video").strip("-")
+    # 旧版只去掉 \ / : * ? " < > | # 与空白，全角标点（，？！《》· 等）仍残留，
+    # 而 Cloudflare Pages 无法路由含全角标点的路径，会回退到首页（SPA fallback）。
+    # 改为白名单：仅保留 CJK、字母、数字、下划线，其余（含全角/半角标点、空格）统一替换为 -。
+    import unicodedata
+    s = unicodedata.normalize("NFC", title)
+    s = re.sub(r"[^\w\u3400-\u9fff\uf900-\ufaff]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s[:60] or "douyin-video"
 
 
 def existing_ids():
