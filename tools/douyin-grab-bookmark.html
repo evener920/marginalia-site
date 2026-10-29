@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>抖音视频抓取书签 · 拖我到收藏夹</title>
+<style>
+  body { font: 16px/1.7 -apple-system,"PingFang SC",sans-serif; max-width:720px; margin:40px auto; padding:0 20px; color:#2b2b2b; }
+  h1 { font-size:22px; }
+  .btn { display:inline-block; padding:12px 22px; background:#7a2e2e; color:#fff; border-radius:10px; font-size:18px; cursor:grab; text-decoration:none; user-select:none; }
+  .btn:active { cursor:grabbing; }
+  ol { padding-left:20px; }
+  code { background:#f3efe7; padding:2px 6px; border-radius:5px; }
+  .note { background:#faf6ef; border-left:4px solid #c9a86a; padding:10px 14px; border-radius:6px; }
+  .warn { background:#fff4f0; border-left:4px solid #c96a6a; padding:10px 14px; border-radius:6px; }
+</style>
+</head>
+<body>
+  <h1>抖音视频抓取 · 书签生成器</h1>
+  <p>把下面这个按钮 <strong>拖到浏览器收藏夹栏</strong>，就得到一个「一键抓取」书签：在抖音<strong>单个视频页</strong>点它，会用你的登录态把视频直链下载到本机（文件名即视频 ID），并附带一份 <code>&lt;ID&gt;.json</code> 元数据（标题/封面/链接），剪贴板也会复制一份。</p>
+  <p><a class="btn" href="javascript:(function(){function q(s){return document.querySelector(s);}function qa(s){return Array.prototype.slice.call(document.querySelectorAll(s));}function rx(s,re){var m=s.match(re);return m?m[1]:'';}var id=rx(location.href,/(?:video|note)\/(\d+)/)||rx(document.body.innerHTML,/video_id[\"':\s]+(\d+)/);var v=q('video');var cand=[];if(v){if(v.currentSrc&&v.currentSrc.indexOf('http')===0)cand.push(v.currentSrc);if(v.src&&v.src.indexOf('http')===0)cand.push(v.src);}qa('video source').forEach(function(s){if(s.src&&s.src.indexOf('http')===0)cand.push(s.src);});var html='';try{html=document.documentElement.outerHTML;}catch(e){}var m,re=/https?:\\/\\/[^\"'\\s]+?(?:douyincdn|bytecdn|ixigua|douyin|tiktokcdn)[^\"'\\s]*?\\.(?:mp4|m3u8)(?:[^\"'\\s]*)/g;while((m=re.exec(html))){cand.push(m[0]);}var url=cand.filter(function(u){return u.indexOf('blob:')!==0;})[0]||null;var title=rx(document.title,/(.+)_-_/) || (q('meta[property=&quot;og:title&quot;]')?q('meta[property=&quot;og:title&quot;]').content:'') || (q('.video-title')?q('.video-title').innerText.trim():'') || document.title;var cover=q('meta[property=&quot;og:image&quot;]')?q('meta[property=&quot;og:image&quot;]').content:(v&&v.poster?v.poster:'');if(!url){alert('没找到视频直链。请确认：\\n1) 已在视频页点开播放（让播放器加载）；\\n2) 用的是 douyin.com 网页版且已登录。\\n也可手动复制视频链接发给我。');return;}var name=(id||'douyin')+'.mp4';var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);var meta={id:id||'',title:title||'',cover:cover||'',url:location.href};var jb=new Blob([JSON.stringify(meta,null,2)],{type:'application/json'});var ju=URL.createObjectURL(jb);var jx=document.createElement('a');jx.href=ju;jx.download=name.replace(/\.mp4$/,'')+'.json';document.body.appendChild(jx);jx.click();document.body.removeChild(jx);var line=[id||'',title||'',cover||''].join('|');if(navigator.clipboard){navigator.clipboard.writeText(line).then(function(){alert('已下载 '+name+' 与 '+name.replace(/\.mp4$/,'')+'.json\\n已复制剪贴板：\\n'+line+'\\n\\n把这两个文件放进 marginalia/_inbox/ 即可自动转写入库。');},function(){alert('已下载 '+name+'\\n（剪贴板复制失败，手动记录）\\n'+line);});}else{alert('已下载 '+name+'\\n'+line);}})()">📥 抖音视频抓取</a></p>
+
+  <div class="warn">
+    <strong>为什么需要这个书签？</strong>
+    <p style="margin:.5rem 0 0">抖音视频本体服务端拿不到（登录态 + 反爬），所以只能<strong>用你浏览器里的登录态</strong>在播放页把真实 mp4 直链下到本机。这一步绕不开——之后转写、入库都自动。</p>
+  </div>
+
+  <div class="note">
+    <strong>完整流程：</strong>
+    <ol>
+      <li>在抖音打开一条<strong>视频</strong>（不是收藏列表），点开播放让它加载。</li>
+      <li>点收藏夹栏的「抖音视频抓取」→ 浏览器下载 <code>&lt;视频ID&gt;.mp4</code> 与 <code>&lt;视频ID&gt;.json</code>，并复制 <code>ID|标题|封面</code>。</li>
+      <li>把这两个文件放进项目 <code>marginalia/_inbox/</code> 目录。</li>
+      <li>告诉我「跑 ingest」，我执行 <code>tools/ingest_inbox.py</code>：抽音频 → Whisper 转写 → 生成/更新视频页 → 提交上线。</li>
+    </ol>
+  </div>
+
+  <p style="color:#888;font-size:13px">注：抓的是抖音临时 CDN 直链，通常有时效，请尽快转入 <code>_inbox</code> 处理。个别视频若页面未暴露直链，书签会提示，可改用「在抖音打开 → 右键视频 → 另存为」手动下载，再丢进 <code>_inbox</code>。</p>
+</body>
+</html>

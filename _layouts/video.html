@@ -327,6 +327,37 @@ layout: default
     text-decoration: none;
   }
   .video-sources a:hover { border-bottom-style: solid; }
+
+  /* —— 语音转文字：可折叠文稿 —— */
+  .video-body details.transcript {
+    margin: 1.8rem 0;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--bg-tint);
+    overflow: hidden;
+  }
+  .video-body details.transcript > summary {
+    cursor: pointer;
+    padding: 0.8rem 1rem;
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    list-style: none;
+    user-select: none;
+  }
+  .video-body details.transcript > summary::-webkit-details-marker { display: none; }
+  .video-body details.transcript > summary::before { content: "▸ "; color: var(--muted); }
+  .video-body details.transcript[open] > summary::before { content: "▾ "; }
+  .video-body details.transcript .transcript-text {
+    padding: 0.2rem 1.2rem 1.3rem;
+    font-family: var(--serif);
+    font-size: 1rem;
+    line-height: 1.95;
+    color: var(--ink);
+    white-space: pre-wrap;
+  }
   /* —— 视频点击播放（封面预览 + 懒加载） —— */
   .video-embed {
     position: relative;
