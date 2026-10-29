@@ -13,3 +13,8 @@ Gemfile.lock
 comments-worker/.wrangler/
 oauth-proxy/.wrangler/
 .solomd/
+
+# 抖音收藏导入的临时抓取清单（由浏览器导出，不应入库）
+douyin-raw.txt
+douyin-import.txt
+douyin-favorites.txt
