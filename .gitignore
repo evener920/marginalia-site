@@ -21,3 +21,7 @@ douyin-favorites.txt
 
 # 书签抓取落盘目录（含待转写视频，体积大，不入库）
 _inbox/
+
+# Python 编译缓存
+__pycache__/
+*.pyc
