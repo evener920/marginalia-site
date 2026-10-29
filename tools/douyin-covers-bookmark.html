@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>抖音封面导出书签 · 拖我到收藏夹</title>
+<style>
+  body { font: 16px/1.7 -apple-system,"PingFang SC",sans-serif; max-width:680px; margin:40px auto; padding:0 20px; color:#2b2b2b; }
+  h1 { font-size:22px; }
+  .btn { display:inline-block; padding:12px 22px; background:#7a2e2e; color:#fff; border-radius:10px; font-size:18px; cursor:grab; text-decoration:none; user-select:none; }
+  .btn:active { cursor:grabbing; }
+  ol { padding-left:20px; }
+  code { background:#f3efe7; padding:2px 6px; border-radius:5px; }
+  .note { background:#faf6ef; border-left:4px solid #c9a86a; padding:10px 14px; border-radius:6px; }
+</style>
+</head>
+<body>
+  <h1>抖音收藏封面导出 · 书签生成器</h1>
+  <p>把下面这个按钮 <strong>拖到浏览器收藏夹栏</strong>（或右键「添加页」），就得到一个一键导出书签：</p>
+  <p><a class="btn" href="javascript:(function(){var o=[];document.querySelectorAll('a[href*=&quot;/video/&quot;]').forEach(function(a){var m=a.href.match(/video\/(\d+)/);if(m){var i=a.querySelector('img');o.push(m[1]+'|'+(i?i.src:''));}});var b=new Blob([o.join('\n')],{type:'text/plain'});var u=URL.createObjectURL(b);var x=document.createElement('a');x.href=u;x.download='covers.txt';x.click();})()">📌 抖音封面导出</a></p>
+  <div class="note">
+    <strong>用法：</strong>
+    <ol>
+      <li>先打开抖音收藏夹页面 <code>douyin.com/user/self?showTab=favorite_collection</code>。</li>
+      <li>把页面<strong>滚动到底部</strong>，让所有视频卡片都加载出来（否则只导出视口内的）。</li>
+      <li>点击收藏夹栏里的「抖音封面导出」书签。</li>
+      <li>浏览器会下载一个 <code>covers.txt</code>，内容是每行 <code>视频ID|封面URL</code>。</li>
+      <li>把 <code>covers.txt</code> 发给我，我跑 <code>fetch_covers.py</code> 一次性补全封面。</li>
+    </ol>
+  </div>
+  <p style="color:#888;font-size:13px">注：抖音图片地址多为临时 CDN，脚本会一并下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。</p>
+</body>
+</html>

@@ -25,17 +25,18 @@ UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.1
 
 
 def load_map(path):
-    if path.endswith(".tsv"):
-        m = {}
-        for ln in open(path, encoding="utf-8"):
-            ln = ln.strip()
-            if not ln or ln.startswith("#"):
-                continue
-            parts = ln.split("\t")
-            if len(parts) >= 2:
-                m[parts[0].strip()] = parts[1].strip()
-        return m
-    return json.load(open(path, encoding="utf-8"))
+    if path.endswith(".json"):
+        return json.load(open(path, encoding="utf-8"))
+    # TSV（tab）或书签导出的「id|url」（竖线）均支持
+    m = {}
+    for ln in open(path, encoding="utf-8"):
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        parts = re.split(r"[|\t]", ln, maxsplit=1)
+        if len(parts) >= 2:
+            m[parts[0].strip()] = parts[1].strip()
+    return m
 
 
 def find_md(vid):
