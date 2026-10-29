@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
     <title>内容管理 · Marginalia</title>
-    <!-- 强制 Decap 以绝对路径加载配置：避免 /admin（无结尾斜杠）时把 config.yml 解析成根路径 /config.yml（返回 SPA 回退页 HTML 导致 YAMLSyntaxError） -->
-    <link rel="cms-config-url" href="/admin/config.yml" />
+    <!-- 强制 Decap 以绝对路径加载配置：type 必须带 text/yaml，否则 Decap 忽略该 link 回退成相对 config.yml；
+         相对解析在 /admin（无结尾斜杠或带 #/）时会解析到根路径 /config.yml（SPA 回退页 HTML → YAMLSyntaxError）。 -->
+    <link rel="cms-config-url" type="text/yaml" href="/admin/config.yml" />
   </head>
   <body>
     <!-- Decap CMS：版本锁定 3.17.1（避免 ^ 漂移导致编辑器行为变化）；CMS_MANUAL_INIT = 先注册自定义组件再手动 init -->
