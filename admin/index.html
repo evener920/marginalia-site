@@ -1808,5 +1808,92 @@
   })();
   </script>
 
+  <!-- 同步抖音视频按钮：点一下触发 GitHub Action 导入流水线（读取 tools/pending_import.md
+       队列），自动生成视频页并部署上线。复用 Decap 的 GitHub 身份鉴权；取不到则跳转
+       GitHub Actions 的 Run 页面兜底。 -->
+  <script>
+  (function () {
+    var REPO = 'evener920/marginalia-site';
+    var WF = 'import-douyin.yml';
+
+    function getAuthed() {
+      // 优先用 Decap 的 GitHub API 客户端；其次直接拿 token 用原生 fetch。
+      try {
+        var b = window.CMS && CMS.getBackend && CMS.getBackend();
+        if (!b) return null;
+        if (b.api && typeof b.api.fetch === 'function')
+          return { fetch: function (p, o) { return b.api.fetch(p, o); } };
+        if (b.backend && b.backend.api && typeof b.backend.api.fetch === 'function')
+          return { fetch: function (p, o) { return b.backend.api.fetch(p, o); } };
+        var token = b.token || (b.backend && b.backend.token) || null;
+        if (token) return { token: token };
+      } catch (e) {}
+      return null;
+    }
+
+    function dispatch() {
+      return new Promise(function (resolve, reject) {
+        var auth = getAuthed();
+        if (!auth) { reject(new Error('no-auth')); return; }
+        var path = 'repos/' + REPO + '/actions/workflows/' + WF + '/dispatches';
+        var body = JSON.stringify({ ref: 'main' });
+        if (auth.fetch) {
+          auth.fetch(path, { method: 'POST', body: body }).then(resolve).catch(reject);
+          return;
+        }
+        var doFetch = function (t) {
+          fetch('https://api.github.com/' + path, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + t,
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/json'
+            },
+            body: body
+          }).then(resolve).catch(reject);
+        };
+        if (auth.token && typeof auth.token.then === 'function') auth.token.then(doFetch).catch(reject);
+        else doFetch(auth.token);
+      });
+    }
+
+    function init() {
+      if (!window.CMS) { setTimeout(init, 500); return; }
+      if (document.getElementById('mg-sync-btn')) return;
+      var btn = document.createElement('button');
+      btn.id = 'mg-sync-btn';
+      btn.type = 'button';
+      btn.textContent = '⇅ 同步抖音视频';
+      btn.setAttribute('style',
+        'position:fixed;top:12px;right:14px;z-index:10000;cursor:pointer;' +
+        'font:600 13px/1 -apple-system,system-ui,sans-serif;letter-spacing:.03em;' +
+        'color:#fbf8f1;background:#8b2e2a;border:1px solid rgba(251,248,241,.35);' +
+        'padding:9px 14px;border-radius:3px;box-shadow:0 3px 10px rgba(31,29,27,.25);');
+      document.body.appendChild(btn);
+
+      var busy = false;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (busy) return;
+        busy = true;
+        var old = btn.textContent;
+        btn.textContent = '导入中…';
+        dispatch().then(function () {
+          btn.textContent = '已触发 ✓';
+          setTimeout(function () { btn.textContent = old; busy = false; }, 4000);
+        }).catch(function () {
+          // 兜底：新标签打开 GitHub Actions 的 Run 页面
+          window.open('https://github.com/' + REPO + '/actions/workflows/' + WF, '_blank');
+          btn.textContent = old; busy = false;
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+    window.addEventListener('load', init);
+  })();
+  </script>
+
   </body>
 </html>

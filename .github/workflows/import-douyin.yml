@@ -1,0 +1,79 @@
+name: Import Douyin Videos
+
+# 由 Decap CMS 后台「⇅ 同步抖音视频」按钮（或 GitHub Actions 页面手动 Run）触发。
+# 读取 tools/pending_import.md 里的「待导入清单」，生成 _videos/*.md 与封面，
+# 提交后显式 dispatch pages.yml 完成构建部署（GITHUB_TOKEN 的 push 不会自动触发 on:push 工作流）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      clear_queue:
+        description: "导入后清空待导入清单"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 把 pending_import.md 的 queue 字段抽成纯清单文件 pending_import.txt
+      - name: Extract queue
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import yaml
+          raw = open('tools/pending_import.md', encoding='utf-8').read()
+          fm = raw.split('---', 2)[1] if raw.startswith('---') else ''
+          data = yaml.safe_load(fm) or {}
+          queue = data.get('queue') or ''
+          lines = [l for l in str(queue).splitlines() if l.strip() and not l.strip().startswith('#')]
+          with open('pending_import.txt', 'w', encoding='utf-8') as f:
+              f.write('\n'.join(lines) + '\n')
+          print('queue entries:', len(lines))
+          EOF
+
+      - name: Import videos (生成 _videos/*.md，含封面直链时内联下载)
+        run: python3 tools/import_douyin.py pending_import.txt
+
+      # 可选：若仓库里另有 covers.txt（id|封面直链）则补齐历史封面（幂等，已有 poster 跳过）
+      - name: Backfill covers (if covers.txt present)
+        run: |
+          if [ -f tools/covers.txt ]; then python3 tools/fetch_covers.py tools/covers.txt; fi
+
+      - name: Commit new videos & covers
+        run: |
+          git config user.name "import-bot"
+          git config user.email "bot@marginalia.local"
+          git add -A _videos assets/img/covers
+          if git diff --cached --quiet; then
+            echo "无新内容，跳过提交"
+          else
+            git commit -m "自动导入抖音视频（$(date +%Y-%m-%d)）"
+            git push
+          fi
+
+      - name: Clear queue
+        if: ${{ github.event.inputs.clear_queue != 'false' }}
+        run: |
+          printf 'queue: ""\n' > tools/pending_import.md
+          git add tools/pending_import.md
+          git commit -m "自动清空导入队列" && git push || true
+
+      - name: Trigger deploy (pages.yml)
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/evener920/marginalia-site/actions/workflows/pages.yml/dispatches \
+            -d '{"ref":"main"}'

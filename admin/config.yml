@@ -172,6 +172,17 @@ collections:
       - { name: cover, label: "封面图 / 书影（可选）", widget: image, required: false }
       - { name: body, label: "正文（笺注 / 赏析，可留空）", widget: markdown, required: false }
 
+  # ============ 抖音导入队列：粘贴新视频清单，后台点「同步抖音视频」按钮即导入上线 ============
+  - name: "import_queue"
+    label: "抖音导入"
+    label_singular: "导入队列"
+    files:
+      - name: "queue"
+        label: "待导入清单"
+        file: "tools/pending_import.md"
+        fields:
+          - { name: queue, label: "每行一条：标题 | 链接 | 封面直链（后两项可省）", widget: text, required: false, hint: "把抖音收藏里的视频按「标题 | 分享链接 | 封面图地址」逐行粘贴，保存后点后台右上角「⇅ 同步抖音视频」按钮，自动生成视频页并上线。封面直链留空也可，随后用 covers 书签补。" }
+
   # ============ 歌本：标题 + 视频入口 + 音频入口（全套） ============
   - name: "songs"
     label: "歌本"
