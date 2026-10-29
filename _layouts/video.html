@@ -54,68 +54,42 @@ layout: default
       </p>
     </header>
 
-    <div class="video-player{% if page.stream_id %} video-player--stream{% elsif page.bvid %} video-player--bili{% elsif douyin_is_note %} video-player--note{% elsif douyin_vid %} video-player--douyin{% elsif youtube_vid %} video-player--youtube{% elsif page.video_url or page.video %} video-player--file{% endif %}">
-      {% if page.stream_id %}
-        {% comment %}Cloudflare Stream 自托管：自动转码 + 自适应码率 + 缩略图{% endcomment %}
-        <stream src="{{ page.stream_id }}" controls></stream>
-      {% elsif page.bvid %}
-        <iframe
-          src="//player.bilibili.com/player.html?bvid={{ page.bvid }}&autoplay=0&high_quality=1&danmaku=0"
-          scrolling="no"
-          frameborder="0"
-          allowfullscreen="true"
-          referrerpolicy="no-referrer"
-          loading="lazy"
-        ></iframe>
-        {% elsif douyin_vid and douyin_is_note == false %}
-          {% comment %}抖音开放播放器：竖屏，稳定性看运气（常需登录/会跳转 App）{% endcomment %}
-          <iframe
-            src="//open.douyin.com/player/video?vid={{ douyin_vid }}&autoplay=0"
-            scrolling="no"
-            frameborder="0"
-            allowfullscreen="true"
-            referrerpolicy="no-referrer"
-            loading="lazy"
-          ></iframe>
-        {% elsif youtube_vid %}
-          {% comment %}YouTube 内嵌：官方 iframe，全球可播、稳定{% endcomment %}
-          <iframe
-            src="https://www.youtube.com/embed/{{ youtube_vid }}?rel=0"
-            title="YouTube video player"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen="true"
-            referrerpolicy="no-referrer"
-            loading="lazy"
-          ></iframe>
-      {% elsif douyin_vid and douyin_is_note %}
-        {% comment %}抖音图文作品：开放播放器不支持图文，只给外链{% endcomment %}
-        <div class="video-note-card">
-          <p class="video-note-icon">📄</p>
-          <p class="video-note-text">这是一条抖音<strong>图文作品</strong>，抖音开放播放器不支持内嵌图文，请在抖音内查看。</p>
-        </div>
-      {% elsif page.video_url %}
-        <video
-          controls
-          preload="metadata"
-          playsinline
-          {% if page.poster %}poster="{{ page.poster | relative_url }}"{% endif %}
-        >
-          <source src="{{ page.video_url }}" type="video/mp4">
-          你的浏览器不支持视频标签。
-        </video>
-      {% elsif page.video %}
-        <video
-          controls
-          preload="metadata"
-          playsinline
-          {% if page.poster %}poster="{{ page.poster | relative_url }}"{% endif %}
-        >
-          <source src="{{ page.video | relative_url }}" type="video/mp4">
-          你的浏览器不支持视频标签。
-        </video>
+    {% comment %}点击播放：先显示封面（或占位），点击后再注入真实播放器。
+      避免一次性加载大量 iframe；抖音开放播放器常需登录/跳 App，懒加载体验更稳。{% endcomment %}
+    {% assign vembed_type = "" %}
+    {% if page.stream_id %}{% assign vembed_type = "stream" %}
+    {% elsif page.bvid %}{% assign vembed_type = "bili" %}
+    {% elsif douyin_is_note %}{% assign vembed_type = "note" %}
+    {% elsif douyin_vid %}{% assign vembed_type = "douyin" %}
+    {% elsif youtube_vid %}{% assign vembed_type = "youtube" %}
+    {% elsif page.video_url or page.video %}{% assign vembed_type = "file" %}{% endif %}
+
+    {% if vembed_type == "note" %}
+      {% comment %}抖音图文作品：开放播放器不支持图文，只给外链{% endcomment %}
+      <div class="video-note-card">
+        <p class="video-note-icon">📄</p>
+        <p class="video-note-text">这是一条抖音<strong>图文作品</strong>，抖音开放播放器不支持内嵌图文，请在抖音内查看。</p>
+      </div>
+    {% else %}
+    <div class="video-embed video-embed--{{ vembed_type }}{% unless page.poster %} video-embed--no-poster{% endunless %}"
+         data-embed-type="{{ vembed_type }}"
+         {% if page.poster %}data-poster="{{ page.poster | relative_url }}"{% endif %}
+         {% if page.stream_id %}data-stream="{{ page.stream_id }}"{% endif %}
+         {% if page.bvid %}data-bvid="{{ page.bvid }}"{% endif %}
+         {% if douyin_vid %}data-douyin="{{ douyin_vid }}"{% endif %}
+         {% if youtube_vid %}data-youtube="{{ youtube_vid }}"{% endif %}
+         {% if page.video_url %}data-video-url="{{ page.video_url }}"{% endif %}
+         {% if page.video %}data-video="{{ page.video | relative_url }}"{% endif %}>
+      {% if page.poster %}
+        <img class="video-embed__poster" src="{{ page.poster | relative_url }}" alt="" loading="lazy">
+      {% else %}
+        <div class="video-embed__placeholder"><span class="video-embed__char">{{ page.title | slice: 0, 1 }}</span></div>
       {% endif %}
+      <button class="video-embed__play" type="button" aria-label="点击播放">
+        <span class="video-embed__tri"></span>
+      </button>
     </div>
+    {% endif %}
     {% if page.stream_id %}
       <p class="video-bili-link">
         视频由 Cloudflare Stream 托管 ·
@@ -353,4 +327,82 @@ layout: default
     text-decoration: none;
   }
   .video-sources a:hover { border-bottom-style: solid; }
+  /* —— 视频点击播放（封面预览 + 懒加载） —— */
+  .video-embed {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--bg-tint);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: 0 6px 18px rgba(31, 29, 27, 0.08);
+    overflow: hidden;
+    cursor: pointer;
+    margin-bottom: 1.8rem;
+  }
+  .video-embed__poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .video-embed__placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f5efe3 0%, #e9dfc9 100%);
+  }
+  .video-embed__char { font-family: var(--serif); font-size: 3rem; color: rgba(31, 29, 27, 0.45); }
+  .video-embed__play {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(31, 29, 27, 0.16);
+    border: 0; cursor: pointer; transition: background 0.25s ease;
+  }
+  .video-embed:hover .video-embed__play { background: rgba(31, 29, 27, 0.3); }
+  .video-embed__tri {
+    width: 0; height: 0;
+    border-left: 18px solid #fbf8f1;
+    border-top: 11px solid transparent;
+    border-bottom: 11px solid transparent;
+    margin-left: 5px;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+  }
+  .video-embed iframe,
+  .video-embed video,
+  .video-embed stream {
+    position: absolute; inset: 14px;
+    width: calc(100% - 28px); height: calc(100% - 28px);
+    border: 0; border-radius: 2px; background: #000;
+  }
+  /* 抖音竖屏：9:16 + 底部控制条(~60px) */
+  .video-embed--douyin { aspect-ratio: auto; max-width: 380px; margin-left: auto; margin-right: auto; }
+  .video-embed--douyin::before { content: ""; display: block; padding-top: calc(16 / 9 * 100% + 60px); }
+  .video-embed--douyin .video-embed__poster,
+  .video-embed--douyin .video-embed__placeholder { position: absolute; inset: 0; }
+  .video-embed--douyin iframe { position: absolute; top: 14px; left: 14px; width: calc(100% - 28px); height: calc(100% - 28px); }
 </style>
+
+<script>
+/* 视频点击播放：封面/占位 → 点击后注入真实播放器（懒加载，避免一次性加载大量 iframe） */
+(function () {
+  function buildPlayer(el) {
+    var t = el.getAttribute('data-embed-type');
+    var html = '';
+    if (t === 'douyin') {
+      var v = el.getAttribute('data-douyin');
+      html = '<iframe src="//open.douyin.com/player/video?vid=' + v + '&autoplay=1" scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer"></iframe>';
+    } else if (t === 'youtube') {
+      var y = el.getAttribute('data-youtube');
+      html = '<iframe src="https://www.youtube.com/embed/' + y + '?rel=0&autoplay=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen="true" referrerpolicy="no-referrer"></iframe>';
+    } else if (t === 'bili') {
+      var b = el.getAttribute('data-bvid');
+      html = '<iframe src="//player.bilibili.com/player.html?bvid=' + b + '&autoplay=1&high_quality=1&danmaku=0" scrolling="no" frameborder="0" allowfullscreen="true" referrerpolicy="no-referrer"></iframe>';
+    } else if (t === 'stream') {
+      var s = el.getAttribute('data-stream');
+      html = '<stream src="' + s + '" controls autoplay></stream>';
+    } else if (t === 'file') {
+      var src = el.getAttribute('data-video-url') || el.getAttribute('data-video');
+      var poster = el.getAttribute('data-poster') || '';
+      html = '<video src="' + src + '" ' + (poster ? 'poster="' + poster + '" ' : '') + 'controls autoplay playsinline></video>';
+    }
+    if (html) { el.innerHTML = html; el.classList.add('is-playing'); }
+  }
+  document.querySelectorAll('.video-embed').forEach(function (el) {
+    el.addEventListener('click', function () { buildPlayer(el); });
+  });
+})();
+</script>

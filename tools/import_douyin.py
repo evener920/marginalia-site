@@ -25,6 +25,7 @@ import urllib.request
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VIDEOS_DIR = os.path.join(REPO_ROOT, "_videos")
+COVERS_DIR = os.path.join(REPO_ROOT, "assets", "img", "covers")
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
 
 
@@ -83,6 +84,29 @@ def existing_ids():
     return ids
 
 
+def download_cover(vid, url):
+    """把封面图下载到 assets/img/covers/<vid>.jpg，返回站点相对路径；失败返回 None。"""
+    if url.startswith("//"):
+        url = "https:" + url
+    os.makedirs(COVERS_DIR, exist_ok=True)
+    dest = os.path.join(COVERS_DIR, f"{vid}.jpg")
+    req = urllib.request.Request(
+        url, headers={"User-Agent": UA, "Referer": "https://www.douyin.com/"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r, open(dest, "wb") as f:
+            f.write(r.read())
+        return f"/assets/img/covers/{vid}.jpg"
+    except Exception as e:
+        print(f"  ! 封面下载失败 ({vid}): {e}")
+        if os.path.exists(dest):
+            try:
+                os.remove(dest)
+            except Exception:
+                pass
+        return None
+
+
 def main():
     args = sys.argv[1:]
     list_file = next((a for a in args if not a.startswith("--")), "douyin-import.txt")
@@ -103,11 +127,14 @@ def main():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        if "|" in line:
-            title, _, url = line.partition("|")
-            title, url = title.strip(), url.strip()
+        # 字段：标题 | 链接 | 封面直链（后两者可选）
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 3:
+            title, url, cover = parts[0], parts[1], parts[2]
+        elif len(parts) == 2:
+            title, url, cover = parts[0], parts[1], ""
         else:
-            url, title = line, ""
+            title, url, cover = "", parts[0], ""
 
         vid = resolve_id(url)
         if not vid:
@@ -127,12 +154,22 @@ def main():
         fname = f"{now.strftime('%Y-%m-%d')}-{slug}.md"
         fpath = os.path.join(VIDEOS_DIR, fname)
 
+        # 下载封面（若有），存到 assets/img/covers/<vid>.jpg
+        poster_field = ""
+        if cover and not dry:
+            local = download_cover(vid, cover)
+            if local:
+                poster_field = f"poster: {local}\n"
+        elif cover and dry:
+            poster_field = f"# poster: /assets/img/covers/{vid}.jpg  (dry-run，未下载)\n"
+
         content = (
             f"---\n"
             f"layout: video\n"
             f"title: {title}\n"
             f"date: {date_str}\n"
             f"douyin_id: {vid}\n"
+            f"{poster_field}"
             f"---\n\n"
             f"（正文可选：可在此写几句推荐语、金句摘录等。）\n"
         )
