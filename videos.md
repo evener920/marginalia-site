@@ -200,7 +200,7 @@ wide: true
 
   .videos-list.is-grid {
     display: flex; flex-wrap: wrap; justify-content: flex-start;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .videos-list.is-grid > li {
@@ -215,13 +215,20 @@ wide: true
   @media (max-width: 420px)  { .videos-list.is-grid > li { width: 100%; } }
   .videos-list.is-grid .poster { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; }
   .videos-list.is-grid .poster img { object-fit: cover; }
-  .videos-list.is-grid .meta { padding: 0.6rem 0.75rem 0.75rem; flex: 0 0 auto; }
-  .videos-list.is-grid .title { font-size: 0.92rem; line-height: 1.25; margin-bottom: 0.25rem; }
-  .videos-list.is-grid .desc {
-    font-size: .78rem; line-height: 1.5;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  .videos-list.is-grid .meta {
+    padding: 0.6rem 0.75rem 0.7rem; flex: 1 1 auto;
+    display: flex; flex-direction: column;
   }
-  .videos-list.is-grid .pills { padding-top: .55rem; margin-top: 0; }
+  /* 网格标题统一两行，超出以省略号隐藏，保证卡片等高、底部标签对齐 */
+  .videos-list.is-grid .title {
+    font-size: 0.9rem; line-height: 1.3; margin-bottom: 0.35rem;
+    min-height: 2.6em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 网格视图隐藏描述：空描述会撑出大块留白并破坏对齐，列表/详情视图仍保留 */
+  .videos-list.is-grid .desc { display: none; }
+  .videos-list.is-grid .pills { margin-top: auto; padding-top: .5rem; }
   .videos-list.is-grid .pills span { font-size: .66rem; padding: 2px 7px; }
   .videos-list.is-grid .mg-card-react { display: none; }
 
