@@ -65,9 +65,19 @@ def fmt_ts(sec):
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 
+_MODEL_CACHE = {}
+
+
+def get_model(model_size="medium"):
+    """按模型名缓存，批量转写时只加载一次（避免每个视频重载 1.5GB 权重）。"""
+    if model_size not in _MODEL_CACHE:
+        from faster_whisper import WhisperModel
+        _MODEL_CACHE[model_size] = WhisperModel(model_size, device="cpu", compute_type="int8")
+    return _MODEL_CACHE[model_size]
+
+
 def transcribe(pcm, model_size="medium", language="zh"):
-    from faster_whisper import WhisperModel
-    model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    model = get_model(model_size)
     segments, info = model.transcribe(
         pcm, language=language, beam_size=5,
         vad_filter=True, vad_parameters=dict(min_silence_duration_ms=500),

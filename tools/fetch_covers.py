@@ -34,7 +34,7 @@ def load_map(path):
         if not ln or ln.startswith("#"):
             continue
         parts = re.split(r"[|\t]", ln, maxsplit=1)
-        if len(parts) >= 2:
+        if len(parts) >= 2 and parts[1].strip():
             m[parts[0].strip()] = parts[1].strip()
     return m
 
