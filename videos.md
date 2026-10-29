@@ -200,6 +200,7 @@ wide: true
 
   .videos-list.is-grid {
     display: flex; flex-wrap: wrap; justify-content: flex-start;
+    align-items: flex-start;
     gap: 0.9rem; margin-top: 1.4rem;
   }
   .videos-list.is-grid > li {
@@ -214,13 +215,13 @@ wide: true
   @media (max-width: 420px)  { .videos-list.is-grid > li { width: 100%; } }
   .videos-list.is-grid .poster { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 0; }
   .videos-list.is-grid .poster img { object-fit: cover; }
-  .videos-list.is-grid .meta { padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
-  .videos-list.is-grid .title { font-size: 0.92rem; line-height: 1.25; margin-bottom: 0.25rem; min-height: 2.3em; }
+  .videos-list.is-grid .meta { padding: 0.6rem 0.75rem 0.75rem; flex: 0 0 auto; }
+  .videos-list.is-grid .title { font-size: 0.92rem; line-height: 1.25; margin-bottom: 0.25rem; }
   .videos-list.is-grid .desc {
-    font-size: .78rem; line-height: 1.5; min-height: 3em;
+    font-size: .78rem; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .videos-list.is-grid .pills { padding-top: .55rem; }
+  .videos-list.is-grid .pills { padding-top: .55rem; margin-top: 0; }
   .videos-list.is-grid .pills span { font-size: .66rem; padding: 2px 7px; }
   .videos-list.is-grid .mg-card-react { display: none; }
 
