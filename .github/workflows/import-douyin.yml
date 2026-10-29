@@ -66,9 +66,9 @@ jobs:
       - name: Clear queue
         if: ${{ github.event.inputs.clear_queue != 'false' }}
         run: |
-          printf 'queue: ""\n' > tools/pending_import.md
+          printf -- '---\nqueue: ""\n---\n' > tools/pending_import.md
           git add tools/pending_import.md
-          git commit -m "自动清空导入队列" && git push || true
+          git diff --cached --quiet || { git commit -m "自动清空导入队列" && git push; }
 
       - name: Trigger deploy (pages.yml)
         run: |
