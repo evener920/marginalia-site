@@ -169,6 +169,7 @@ def main():
             f"title: {title}\n"
             f"date: {date_str}\n"
             f"douyin_id: {vid}\n"
+            f"tags:\n  - douyin\n"
             f"{poster_field}"
             f"---\n\n"
             f"（正文可选：可在此写几句推荐语、金句摘录等。）\n"

@@ -223,6 +223,47 @@ wide: true
   .videos-list.is-grid .pills { padding-top: .55rem; }
   .videos-list.is-grid .pills span { font-size: .66rem; padding: 2px 7px; }
   .videos-list.is-grid .mg-card-react { display: none; }
+
+  /* —— 弹窗播放（点击封面/播放键，原地弹窗，不跳页）—— */
+  .video-modal { position: fixed; inset: 0; z-index: 1000; display: none; }
+  .video-modal.is-open { display: block; }
+  .video-modal__backdrop {
+    position: absolute; inset: 0;
+    background: rgba(20, 18, 16, 0.84);
+    backdrop-filter: blur(6px);
+    animation: vm-fade .18s ease;
+  }
+  .video-modal__dialog {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 1080px);
+    animation: vm-pop .2s ease;
+  }
+  .video-modal__dialog::before { content: ""; display: block; padding-top: 56.25%; }
+  .video-modal__stage { position: absolute; inset: 0; background: #000; }
+  .video-modal__stage iframe,
+  .video-modal__stage video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; background: #000;
+  }
+  .video-modal__close {
+    position: absolute; top: -42px; right: 0;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid rgba(251, 248, 241, 0.4);
+    background: rgba(31, 29, 27, 0.6); color: #fbf8f1;
+    font-size: 1.25rem; line-height: 1; cursor: pointer;
+    transition: background .2s, border-color .2s;
+  }
+  .video-modal__close:hover { background: var(--accent); border-color: var(--accent); }
+  .video-modal__title {
+    position: absolute; bottom: -34px; left: 0;
+    color: #fbf8f1; font-family: var(--serif);
+    font-size: 0.95rem; opacity: 0.86; max-width: 92%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  @keyframes vm-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes vm-pop { from { opacity: 0; transform: translate(-50%, -46%) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+  @media (max-width: 640px) { .video-modal__dialog { width: 96vw; } .video-modal__title { display: none; } }
 </style>
 
 这里收录从抖音收藏夹迁来的哲学、认知、科普与传统文化短片。
@@ -243,7 +284,7 @@ wide: true
     {% for v in videos %}
     {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
     <li data-cats="{{ vcat }}">
-      <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}">
+      <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}" data-modal="douyin" data-douyin-id="{{ v.douyin_id }}" data-title="{{ v.title | escape }}">
         {% if v.poster %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
         {% elsif v.tags contains 'douyin' %}{% assign gidx = v.title | size | modulo: 5 %}<span class="frame-cover frame-cover--{{ gidx }}"><span class="frame-cover-char">{{ v.title | slice: 0, 1 }}</span><span class="frame-cover-tag">抖音收藏</span></span>{% endif %}
         <span class="play"></span>
@@ -293,3 +334,80 @@ wide: true
 })();
 </script>
 <script src="{{ '/assets/js/filter.js' | relative_url }}?v=20261022" defer></script>
+
+<!-- 视频弹窗播放器：点击列表封面/播放键原地弹出，不跳转到详情页 -->
+<div class="video-modal" id="videoModal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="视频播放">
+  <div class="video-modal__backdrop" data-vm-close></div>
+  <div class="video-modal__dialog">
+    <button class="video-modal__close" type="button" data-vm-close aria-label="关闭">×</button>
+    <div class="video-modal__stage" id="videoModalStage"></div>
+    <div class="video-modal__title" id="videoModalTitle"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('videoModal');
+  if (!modal) return;
+  var stage = document.getElementById('videoModalStage');
+  var titleEl = document.getElementById('videoModalTitle');
+  var lastFocus = null;
+
+  function build(anchor) {
+    var type = anchor.getAttribute('data-modal');
+    var title = anchor.getAttribute('data-title') || '';
+    titleEl.textContent = title;
+    stage.innerHTML = '';
+    if (type === 'douyin') {
+      var id = anchor.getAttribute('data-douyin-id');
+      if (!id) return false;
+      var f = document.createElement('iframe');
+      f.src = 'https://open.douyin.com/player/video?vid=' + encodeURIComponent(id) + '&autoplay=1';
+      f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture');
+      f.setAttribute('allowfullscreen', '');
+      f.setAttribute('referrerpolicy', 'no-referrer');
+      stage.appendChild(f);
+      return true;
+    }
+    if (type === 'file') {
+      var src = anchor.getAttribute('data-video-src');
+      if (!src) return false;
+      var v = document.createElement('video');
+      v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true;
+      stage.appendChild(v);
+      return true;
+    }
+    return false;
+  }
+
+  function openModal(anchor) {
+    if (!build(anchor)) return false;
+    lastFocus = document.activeElement;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    var c = modal.querySelector('.video-modal__close');
+    if (c) c.focus();
+    return true;
+  }
+  function closeModal() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    stage.innerHTML = ''; // 停止播放，释放 iframe
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+
+  document.addEventListener('click', function (e) {
+    var card = e.target.closest('[data-modal]');
+    if (card) {
+      e.preventDefault();
+      openModal(card);
+      return;
+    }
+    if (e.target.closest('[data-vm-close]')) closeModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
+})();
+</script>
