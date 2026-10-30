@@ -293,7 +293,7 @@ wide: true
     {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
     <li data-cats="{{ vcat }}">
       <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}" data-modal="douyin" data-douyin-id="{{ v.douyin_id }}" data-title="{{ v.title | escape }}">
-        {% if v.poster and v.poster != "" %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
+        {% if v.poster and v.poster != "" %}<img src="{% if v.poster contains '://' %}{{ v.poster }}{% else %}{{ v.poster | relative_url }}{% endif %}" alt="" loading="lazy" onerror="mgImgFail(this)">
         {% elsif v.tags contains 'douyin' %}{% assign gidx = v.title | size | modulo: 5 %}<span class="frame-cover frame-cover--{{ gidx }}"><span class="frame-cover-char">{{ v.title | slice: 0, 1 }}</span><span class="frame-cover-tag">抖音收藏</span></span>{% endif %}
         <span class="play"></span>
         {% if v.duration %}<span class="duration">{{ v.duration }}</span>{% endif %}
@@ -319,6 +319,29 @@ wide: true
 {% endif %}
 
 <script>
+/* 封面加载失败兜底：换成「标题首字 + 渐变」占位卡，绝不裂图 */
+function mgImgFail(img) {
+  try {
+    var a = img.closest('.poster');
+    if (!a) return;
+    img.style.display = 'none';
+    a.classList.add('poster--source');
+    if (a.querySelector('.frame-cover')) return;
+    var title = a.getAttribute('data-title') || '';
+    var ch = title.slice(0, 1) || '·';
+    var gi = (title.length) % 5;
+    var fc = document.createElement('span');
+    fc.className = 'frame-cover frame-cover--' + gi;
+    var c = document.createElement('span'); c.className = 'frame-cover-char';
+    c.textContent = ch;
+    var t = document.createElement('span'); t.className = 'frame-cover-tag';
+    t.textContent = '抖音收藏';
+    fc.appendChild(c); fc.appendChild(t);
+    var play = a.querySelector('.play');
+    a.insertBefore(fc, play);
+  } catch (e) {}
+}
+
 /* 视图切换：列表 / 网格，localStorage 记住偏好 */
 (function () {
   var KEY = 'videos-view';
