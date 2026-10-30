@@ -22,10 +22,17 @@
   <p>这个书签是真正的「自动同步按钮」：在抖音<strong>收藏列表页</strong>（或单个视频页）点它，会用你的登录态把页面上所有视频提取出来，直接推送给站点的入库 Worker，<strong>自动建视频页 + 拉封面 + 部署</strong>。全程<strong>不用复制粘贴</strong>。</p>
 
   <p><label for="worker">① 填入你的入库 Worker 地址</label>
-  <input id="worker" placeholder="https://marginalia-douyin-ingest.xxx.workers.dev" value="">
-  <span class="hint">部署 Worker 后获得，形如 https://xxxx.workers.dev（不要带结尾斜杠）。</span></p>
+  <input id="worker" placeholder="https://marginalia-douyin-ingest.xxx.workers.dev" value="https://marginalia-douyin-ingest.evener920.workers.dev">
+  <span class="hint">已预填当前部署地址；形如 https://xxxx.workers.dev（不要带结尾斜杠）。</span></p>
 
-  <p><a class="btn" id="bm" href="#">📌 抖音收藏同步</a> <span class="hint">把上面这个按钮拖到浏览器收藏夹栏</span></p>
+  <p>
+    <a class="btn" id="bm" href="#">📌 抖音收藏同步</a>
+    <button id="copy" class="btn" style="background:#7a2e2e">📋 复制书签代码</button>
+    <span class="hint">推荐用「复制」+ 手动添加书签（见下方说明）；拖拽在 Chrome 会被剥掉 javascript: 协议而失效。</span>
+  </p>
+
+  <p><label for="code">② 书签代码（复制后手动添加书签用）</label>
+  <textarea id="code" rows="4" readonly style="width:100%;font:12px/1.5 monospace;padding:9px 11px;border:1px solid #c9a86a;border-radius:8px;box-sizing:border-box;word-break:break-all"></textarea></p>
 
   <div class="note">
     <strong>用法：</strong>
@@ -39,6 +46,10 @@
 
   <div class="warn">
     <strong>前提：</strong>Worker 必须已部署且设置好 <code>GH_TOKEN</code> secret（持有 marginalia-site 仓库 contents 写权限的 fine-grained PAT）。否则推送会失败，书签会弹错误提示。
+  </div>
+
+  <div class="warn">
+    <strong>⚠ 安装方式（很重要）：</strong>Chrome / 新版 Edge 从网页<strong>拖拽</strong> <code>javascript:</code> 书签时会<strong>静默剥掉协议</strong>，书签点下去完全没反应——你之前八成就是卡在这。正确做法：点「📋 复制书签代码」→ 在收藏夹栏<strong>右键 → 添加网页</strong> → 名称随意、<strong>网址栏粘贴</strong>刚才复制的内容。Firefox / Safari 可直接拖拽。
   </div>
 
   <p class="hint">注：自动滚动期间不要手动滚动或切换标签页，以免打断加载。若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
@@ -118,10 +129,29 @@ var inp = document.getElementById('worker');
 var bm = document.getElementById('bm');
 function refresh() {
   var w = inp.value.trim().replace(/\/+$/, '');
-  bm.href = 'javascript:' + encodeURIComponent(buildBookmarklet(w));
+  var code = buildBookmarklet(w);
+  bm.href = 'javascript:' + encodeURIComponent(code);
+  document.getElementById('code').value = 'javascript:' + code.replace(/\n/g, ' ');
 }
 inp.addEventListener('input', refresh);
 refresh();
+
+var copyBtn = document.getElementById('copy');
+copyBtn.addEventListener('click', function () {
+  var ta = document.getElementById('code');
+  var txt = ta.value;
+  if (!txt || txt === 'javascript:') { alert('请先在上方填入 Worker 地址。'); return; }
+  function done() {
+    var o = copyBtn.textContent;
+    copyBtn.textContent = '✓ 已复制，去收藏夹右键→添加网页→粘贴';
+    setTimeout(function () { copyBtn.textContent = o; }, 2600);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done).catch(function () { ta.select(); document.execCommand('copy'); done(); });
+  } else {
+    ta.select(); document.execCommand('copy'); done();
+  }
+});
 </script>
 </body>
 </html>
