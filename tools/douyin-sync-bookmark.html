@@ -31,8 +31,8 @@
     <strong>用法：</strong>
     <ol>
       <li>打开抖音收藏夹页面（<code>douyin.com/user/self?showTab=favorite_collection</code>）。</li>
-      <li>把页面<strong>滚动到底部</strong>，让所有视频卡片都加载出来。</li>
-      <li>点收藏夹栏的「抖音收藏同步」→ 自动提取并推送。</li>
+      <li>直接点收藏夹栏的「抖音收藏同步」即可——书签会<strong>自动滚动加载全部视频卡片</strong>，不用你手动滚。</li>
+      <li>页面顶部会显示「已加载 N 条，正在自动滚动加载更多…」，加载完自动提取并推送。</li>
       <li>弹出「新增 N 条，正在部署」即成功，约 1 分钟后刷新站点即可看到。</li>
     </ol>
   </div>
@@ -41,42 +41,73 @@
     <strong>前提：</strong>Worker 必须已部署且设置好 <code>GH_TOKEN</code> secret（持有 marginalia-site 仓库 contents 写权限的 fine-grained PAT）。否则推送会失败，书签会弹错误提示。
   </div>
 
-  <p class="hint">注：若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
+  <p class="hint">注：自动滚动期间不要手动滚动或切换标签页，以免打断加载。若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
 
 <script>
 function buildBookmarklet(worker) {
   // 注意：下面 this 字符串里的双引号会被 encodeURIComponent 转义，安全。
   return [
     "(function(){",
-    "var W='", worker, "';",
+    "var W='"+worker+"';",
     "if(!W){alert('书签未配置 Worker 地址，请在生成页填入。');return;}",
     "function qa(s){return [].slice.call(document.querySelectorAll(s));}",
     "var seen={},entries=[];",
-    "qa('a[href*=\"/video/\"]').forEach(function(a){",
-    "  var m=a.href.match(/video\\/(\\d+)/);if(!m)return;",
-    "  var id=m[1];if(seen[id])return;seen[id]=1;",
-    "  var img=a.querySelector('img');",
-    "  var cover=img?img.src:'';",
-    "  var title=(img&&img.alt)||a.getAttribute('title')||a.textContent.trim().slice(0,80)||'';",
-    "  entries.push({id:id,title:title,url:a.href,cover:cover});",
-    "});",
-    "if(entries.length===0){",
-    "  var idm=location.href.match(/(?:video|note)\\/(\\d+)/);",
-    "  if(idm){var v=document.querySelector('video');",
-    "    var cov=document.querySelector('meta[property=\"og:image\"]')?document.querySelector('meta[property=\"og:image\"]').content:(v&&v.poster||'');",
-    "    var ti=document.querySelector('meta[property=\"og:title\"]')?document.querySelector('meta[property=\"og:title\"]').content:document.title;",
-    "    entries.push({id:idm[1],title:ti,url:location.href,cover:cov});}",
+    "function extract(){",
+    "  qa('a[href*=\"/video/\"]').forEach(function(a){",
+    "    var m=a.href.match(/video\\/(\\d+)/);if(!m)return;",
+    "    var id=m[1];if(seen[id])return;seen[id]=1;",
+    "    var img=a.querySelector('img');",
+    "    var cover=img?img.src:'';",
+    "    var title=(img&&img.alt)||a.getAttribute('title')||a.textContent.trim().slice(0,80)||'';",
+    "    entries.push({id:id,title:title,url:a.href,cover:cover});",
+    "  });",
     "}",
-    "if(entries.length===0){alert('没找到视频。请在抖音收藏列表页或单个视频页使用（并先滚动加载全部）。');return;}",
-    "var btn=document.createElement('div');btn.textContent='正在同步 '+entries.length+' 条…';",
-    "btn.style.cssText='position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:99999;background:#7a2e2e;color:#fff;padding:10px 18px;border-radius:10px;font:14px/1 sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3)';",
+    "var btn=document.createElement('div');",
+    "btn.style.cssText='position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:99999;background:#7a2e2e;color:#fff;padding:10px 18px;border-radius:10px;font:14px/1.4 sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:82vw;text-align:center';",
     "document.body.appendChild(btn);",
-    "fetch(W+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:entries})})",
-    ".then(function(r){return r.json();})",
-    ".then(function(d){btn.textContent='完成：新增 '+(d.created||0)+' 条，跳过 '+(d.skipped||0)+' 条'+(d.error?('，错误：'+d.error):'')+'，网站正在部署…';",
-    "  setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 4000);})",
-    ".catch(function(e){btn.textContent='同步失败：'+e.message+'（可能是抖音 CSP 拦截，改用 covers 书签导出后发我）';",
-    "  setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 6000);});",
+    "function setStatus(t){btn.textContent=t;}",
+    "function scrollAll(){",
+    "  window.scrollTo(0, document.body.scrollHeight);",
+    "  qa('*').forEach(function(el){",
+    "    var oy=getComputedStyle(el).overflowY;",
+    "    if((oy==='auto'||oy==='scroll')&&el.scrollHeight>el.clientHeight+10){el.scrollTop=el.scrollHeight;}",
+    "  });",
+    "  qa('button,a').forEach(function(b){",
+    "    var t=(b.textContent||'').replace(/\\s/g,'');",
+    "    if(t.indexOf('加载更多')>=0||t.indexOf('查看全部')>=0||t.indexOf('点击加载')>=0){try{b.click();}catch(e){}}",
+    "  });",
+    "}",
+    "var tries=0, stable=0, MAX=80;",
+    "function step(){",
+    "  var n=qa('a[href*=\"/video/\"]').length;",
+    "  setStatus('已加载 '+n+' 条，正在自动滚动加载更多…（'+(tries+1)+'）');",
+    "  scrollAll();",
+    "  setTimeout(function(){",
+    "    var n2=qa('a[href*=\"/video/\"]').length;",
+    "    tries++;",
+    "    if(n2>n){stable=0;}else{stable++;}",
+    "    if(stable>=3||tries>=MAX){finish();}else{step();}",
+    "  }, 1100);",
+    "}",
+    "function finish(){",
+    "  entries=[]; seen={}; extract();",
+    "  if(entries.length===0){",
+    "    var idm=location.href.match(/(?:video|note)\\/(\\d+)/);",
+    "    if(idm){var v=document.querySelector('video');",
+    "      var cov=document.querySelector('meta[property=\"og:image\"]')?document.querySelector('meta[property=\"og:image\"]').content:(v&&v.poster||'');",
+    "      var ti=document.querySelector('meta[property=\"og:title\"]')?document.querySelector('meta[property=\"og:title\"]').content:document.title;",
+    "      entries.push({id:idm[1],title:ti,url:location.href,cover:cov});}",
+    "  }",
+    "  if(entries.length===0){setStatus('没找到视频。请在抖音收藏列表页或单个视频页使用。');setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);},5000);return;}",
+    "  setStatus('共 '+entries.length+' 条，正在推送到入库 Worker…');",
+    "  fetch(W+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:entries})})",
+    "  .then(function(r){return r.json();})",
+    "  .then(function(d){setStatus('完成：新增 '+(d.created||0)+' 条，跳过 '+(d.skipped||0)+' 条'+(d.error?('，错误：'+d.error):'')+'，网站正在部署…');",
+    "    setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 5000);})",
+    "  .catch(function(e){setStatus('同步失败：'+e.message+'（可能是抖音 CSP 拦截，改用 covers 书签导出后发我）');",
+    "    setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 7000);});",
+    "}",
+    "step();",
     "})();"
   ].join("\n");
 }
