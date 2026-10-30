@@ -136,6 +136,12 @@ function refresh() {
 inp.addEventListener('input', refresh);
 refresh();
 
+// 在生成页上点 📌 按钮不要直接执行代码（会误报「没找到视频」），改为引导用复制方式安装
+bm.addEventListener('click', function (e) {
+  e.preventDefault();
+  alert('不要在此页点击这个按钮。\n请点「📋 复制书签代码」，然后到抖音收藏页点击你添加的书签。');
+});
+
 var copyBtn = document.getElementById('copy');
 copyBtn.addEventListener('click', function () {
   var ta = document.getElementById('code');
