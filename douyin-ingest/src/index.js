@@ -186,29 +186,54 @@ async function processChunk(env, chunk, index, baseCommitSha, date) {
   return newCommit;
 }
 
+// 同步日志：每次 /ingest 追加一条（哪怕无新增也留痕），保留最近 50 条。
+// 解决「分不清没干活 vs 干了但没货」——事后随时可查每次同步的结果。
+async function readSyncLog(env) {
+  const r = await ghFetch(env, `/contents/_data/douyin_sync_log.json?ref=${env.BRANCH}`);
+  if (!r.ok) return [];
+  try {
+    return JSON.parse(Buffer.from((await r.json()).content, "base64").toString("utf8"));
+  } catch {
+    return [];
+  }
+}
+
 // 把「id→收藏位置」和「id→封面 URL」写成 _data/ 下两份 JSON，
 // 供站点 JS 重排视频顺序 + 给缺封面的卡片补真实图。
 // 每次同步都发送完整的当前收藏列表，因此这两份直接整体覆盖即可。
-async function writeDataFiles(env, favOrder, covers) {
-  if (!Object.keys(favOrder).length && !Object.keys(covers).length) return null;
+// 同时把本次同步的 syncEntry 追加进 _data/douyin_sync_log.json（总是写，即使无变化）。
+async function writeDataFiles(env, favOrder, covers, syncEntry) {
   const refR = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
   if (!refR.ok) throw new Error(`读分支失败: ${refR.status}`);
   let baseSha = (await refR.json()).object.sha;
   const baseTreeSha = await getBaseTreeSha(env, baseSha);
 
-  const orderSha = await createBlob(env, utf8ToBase64(JSON.stringify(favOrder, null, 2)));
-  const coversSha = await createBlob(env, utf8ToBase64(JSON.stringify(covers, null, 2)));
+  const treeEntries = [];
+  if (Object.keys(favOrder).length) {
+    const orderSha = await createBlob(env, utf8ToBase64(JSON.stringify(favOrder, null, 2)));
+    treeEntries.push({ path: "_data/douyin_fav_order.json", mode: "100644", type: "blob", sha: orderSha });
+  }
+  if (Object.keys(covers).length) {
+    const coversSha = await createBlob(env, utf8ToBase64(JSON.stringify(covers, null, 2)));
+    treeEntries.push({ path: "_data/douyin_covers.json", mode: "100644", type: "blob", sha: coversSha });
+  }
+
+  const log = await readSyncLog(env);
+  log.unshift(syncEntry);
+  const logSha = await createBlob(
+    env,
+    utf8ToBase64(JSON.stringify(log.slice(0, 50), null, 2))
+  );
+  treeEntries.push({ path: "_data/douyin_sync_log.json", mode: "100644", type: "blob", sha: logSha });
+
   const treeR = await ghFetch(env, `/git/trees`, "POST", {
     base_tree: baseTreeSha,
-    tree: [
-      { path: "_data/douyin_fav_order.json", mode: "100644", type: "blob", sha: orderSha },
-      { path: "_data/douyin_covers.json", mode: "100644", type: "blob", sha: coversSha },
-    ],
+    tree: treeEntries,
   });
   if (!treeR.ok) throw new Error(`建树失败: ${treeR.status}`);
   const treeSha = (await treeR.json()).sha;
   const commitR = await ghFetch(env, `/git/commits`, "POST", {
-    message: `data: 更新抖音收藏顺序与封面映射 (via douyin-ingest)`,
+    message: `data: 抖音同步 新增${syncEntry.created}/跳过${syncEntry.skipped}/映射${syncEntry.order} (via douyin-ingest)`,
     tree: treeSha,
     parents: [baseSha],
   });
@@ -293,7 +318,16 @@ export default {
         ctx.waitUntil(
           (async () => {
             try {
-              const newSha = await writeDataFiles(env, favOrder, covers);
+              const { datetime } = todayStamp();
+              const syncEntry = {
+                ts: datetime,
+                received: entries.length,
+                created: toProcess.length,
+                skipped,
+                order: Object.keys(favOrder).length,
+                covers: Object.keys(covers).length,
+              };
+              const newSha = await writeDataFiles(env, favOrder, covers, syncEntry);
               const startSha = newSha || (await (async () => {
                 const r = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
                 if (!r.ok) throw new Error(`读分支失败: ${r.status}`);
