@@ -42,25 +42,16 @@ function slugify(title) {
 }
 
 function todayStamp() {
-  const d = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const now = new Date(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Shanghai",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).format(new Date())
-  );
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
-  return { date: d, datetime: `${d} ${hh}:${mm}:${ss} +08:00` };
+  const now = new Date();
+  const tz = "Asia/Shanghai";
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  // en-GB + hour12:false 直接给出 24 小时制 "HH:MM:SS"，无需再 new Date() 解析（那会产出 NaN）
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).format(now);
+  return { date, datetime: `${date} ${time} +08:00` };
 }
 
 function ghFetch(env, path, method = "GET", body) {
@@ -102,29 +93,9 @@ async function createBlob(env, contentBase64) {
   return (await r.json()).sha;
 }
 
-async function fetchCover(coverUrl) {
-  if (!coverUrl || coverUrl.indexOf("data:") === 0) return null;
-  let url = coverUrl;
-  if (url.startsWith("//")) url = "https:" + url;
-  try {
-    const r = await fetch(url, {
-      headers: { Referer: "https://www.douyin.com/", "User-Agent": "Mozilla/5.0" },
-    });
-    if (!r.ok) return null;
-    const buf = new Uint8Array(await r.arrayBuffer());
-    // 校验：太小（占位/错误页）或不是图片签名的直接丢弃，避免存 4 字节残图
-    if (buf.length < 1024) return null;
-    const ok =
-      (buf[0] === 0xff && buf[1] === 0xd8) || // JPEG
-      (buf[0] === 0x89 && buf[1] === 0x50) || // PNG
-      (buf[0] === 0x47 && buf[1] === 0x49); // GIF
-    if (!ok) return null;
-    return bytesToBase64(buf);
-  } catch {
-    return null;
-  }
-}
-
+// 注意：抖音封面带防盗链/签名，Worker 服务端 fetch 拿不到真图（常返回极小占位响应）。
+// 因此不再在服务端拉图，而是把书签抓到的「抖音原始封面 URL」直接写进视频页，
+// 由用户浏览器直连抖音 CDN 加载（浏览器上下文通常能绕过服务端拉不到的防盗链）。
 function buildMd(title, vid, posterRel) {
   const { datetime } = todayStamp();
   const poster = posterRel ? `poster: ${posterRel}\n` : "";
@@ -163,20 +134,13 @@ async function processChunk(env, chunk, index, baseCommitSha, date) {
     const title = (e.title || `抖音视频 ${vid}`).slice(0, 120);
     const slug = slugify(title);
     const fname = `${date}-${slug}.md`;
+    // 直接采用书签传来的抖音原始封面 URL（http(s)），不再服务端拉图
     let posterRel = "";
-    const coverB64 = await fetchCover(e.cover);
-    const parts = [];
-    if (coverB64) {
-      posterRel = `/assets/img/covers/${vid}.jpg`;
-      parts.push({
-        path: `assets/img/covers/${vid}.jpg`,
-        mode: "100644",
-        type: "blob",
-        sha: await createBlob(env, coverB64),
-      });
-    }
+    const coverRaw = (e.cover || "").toString().trim();
+    if (coverRaw.startsWith("//")) posterRel = "https:" + coverRaw;
+    else if (/^https?:\/\//.test(coverRaw)) posterRel = coverRaw;
     const mdSha = await createBlob(env, utf8ToBase64(buildMd(title, vid, posterRel)));
-    parts.push({ path: `_videos/${fname}`, mode: "100644", type: "blob", sha: mdSha });
+    const parts = [{ path: `_videos/${fname}`, mode: "100644", type: "blob", sha: mdSha }];
     index[vid] = fname; // 写入索引（内存），后续批次据此去重
     return parts;
   });
