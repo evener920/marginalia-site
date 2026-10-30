@@ -293,7 +293,7 @@ wide: true
     {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
     <li data-cats="{{ vcat }}">
       <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}" data-modal="douyin" data-douyin-id="{{ v.douyin_id }}" data-title="{{ v.title | escape }}">
-        {% if v.poster %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
+        {% if v.poster and v.poster != "" %}<img src="{{ v.poster | relative_url }}" alt="" loading="lazy">
         {% elsif v.tags contains 'douyin' %}{% assign gidx = v.title | size | modulo: 5 %}<span class="frame-cover frame-cover--{{ gidx }}"><span class="frame-cover-char">{{ v.title | slice: 0, 1 }}</span><span class="frame-cover-tag">抖音收藏</span></span>{% endif %}
         <span class="play"></span>
         {% if v.duration %}<span class="duration">{{ v.duration }}</span>{% endif %}
