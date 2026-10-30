@@ -316,6 +316,52 @@ wide: true
   </ul>
   <div data-filter-pager></div>
 </section>
+
+<!-- 抖音收藏原始顺序 + 封面映射：由入库 Worker 自动写入 _data/ 两份 JSON -->
+<script id="douyin-order" type="application/json">{% if site.data.douyin_fav_order %}{{ site.data.douyin_fav_order | jsonify }}{% else %}{}{% endif %}</script>
+<script id="douyin-covers" type="application/json">{% if site.data.douyin_covers %}{{ site.data.douyin_covers | jsonify }}{% else %}{}{% endif %}</script>
+
+<script>
+/* 按抖音收藏原始顺序重排列表，并给缺封面的卡片补真实抖音封面（失败自动回退占位卡） */
+(function () {
+  var ul = document.querySelector('.videos-list');
+  if (!ul) return;
+  var orderEl = document.getElementById('douyin-order');
+  var coversEl = document.getElementById('douyin-covers');
+  var favOrder = {}, covers = {};
+  try { favOrder = JSON.parse((orderEl && orderEl.textContent) || '{}') || {}; } catch (e) {}
+  try { covers = JSON.parse((coversEl && coversEl.textContent) || '{}') || {}; } catch (e) {}
+
+  var items = [].slice.call(ul.children).filter(function (li) { return li.tagName === 'LI'; });
+  items.forEach(function (li, i) {
+    var a = li.querySelector('a.poster');
+    var id = a ? a.getAttribute('data-douyin-id') : '';
+    li.__id = id || '';
+    li.__order = (id && favOrder[id] != null) ? favOrder[id] : (1e9 + i);
+  });
+  items.sort(function (x, y) { return x.__order - y.__order; });
+  items.forEach(function (li) { ul.appendChild(li); });
+
+  /* 给没有 <img> 的抖音卡片注入真实封面（来自 covers 映射） */
+  items.forEach(function (li) {
+    var a = li.querySelector('a.poster');
+    if (!a || a.querySelector('img')) return;
+    var id = li.__id;
+    if (id && covers[id]) {
+      var fc = a.querySelector('.frame-cover');
+      if (fc) fc.remove();
+      var img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.setAttribute('onerror', 'mgImgFail(this)');
+      img.src = covers[id];
+      var play = a.querySelector('.play');
+      a.insertBefore(img, play);
+      a.classList.remove('poster--source');
+    }
+  });
+})();
+</script>
 {% endif %}
 
 <script>

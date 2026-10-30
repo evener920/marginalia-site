@@ -33,6 +33,15 @@ function utf8ToBase64(str) {
   return bytesToBase64(new TextEncoder().encode(str));
 }
 
+// 抖音封面可能是 // 协议相对地址或完整 https，统一规整成可直连的 https URL
+function coverToUrl(raw) {
+  const c = (raw || "").toString().trim();
+  if (!c) return "";
+  if (c.startsWith("//")) return "https:" + c;
+  if (/^https?:\/\//.test(c)) return c;
+  return "";
+}
+
 // 与 tools/import_douyin.py 的 slugify 保持一致：白名单保留 CJK/字母/数字/_
 function slugify(title) {
   const s = (title || "").normalize("NFC");
@@ -177,11 +186,50 @@ async function processChunk(env, chunk, index, baseCommitSha, date) {
   return newCommit;
 }
 
-async function processAll(env, toProcess, index) {
-  const { date } = todayStamp();
+// 把「id→收藏位置」和「id→封面 URL」写成 _data/ 下两份 JSON，
+// 供站点 JS 重排视频顺序 + 给缺封面的卡片补真实图。
+// 每次同步都发送完整的当前收藏列表，因此这两份直接整体覆盖即可。
+async function writeDataFiles(env, favOrder, covers) {
+  if (!Object.keys(favOrder).length && !Object.keys(covers).length) return null;
   const refR = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
   if (!refR.ok) throw new Error(`读分支失败: ${refR.status}`);
   let baseSha = (await refR.json()).object.sha;
+  const baseTreeSha = await getBaseTreeSha(env, baseSha);
+
+  const orderSha = await createBlob(env, utf8ToBase64(JSON.stringify(favOrder, null, 2)));
+  const coversSha = await createBlob(env, utf8ToBase64(JSON.stringify(covers, null, 2)));
+  const treeR = await ghFetch(env, `/git/trees`, "POST", {
+    base_tree: baseTreeSha,
+    tree: [
+      { path: "_data/douyin_fav_order.json", mode: "100644", type: "blob", sha: orderSha },
+      { path: "_data/douyin_covers.json", mode: "100644", type: "blob", sha: coversSha },
+    ],
+  });
+  if (!treeR.ok) throw new Error(`建树失败: ${treeR.status}`);
+  const treeSha = (await treeR.json()).sha;
+  const commitR = await ghFetch(env, `/git/commits`, "POST", {
+    message: `data: 更新抖音收藏顺序与封面映射 (via douyin-ingest)`,
+    tree: treeSha,
+    parents: [baseSha],
+  });
+  if (!commitR.ok) throw new Error(`建提交失败: ${commitR.status}`);
+  const newCommit = (await commitR.json()).sha;
+  const refR2 = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`, "PATCH", {
+    sha: newCommit,
+    force: false,
+  });
+  if (!refR2.ok) throw new Error(`更新分支失败: ${refR2.status}`);
+  return newCommit;
+}
+
+async function processAll(env, toProcess, index, startSha) {
+  const { date } = todayStamp();
+  let baseSha = startSha;
+  if (!baseSha) {
+    const refR = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
+    if (!refR.ok) throw new Error(`读分支失败: ${refR.status}`);
+    baseSha = (await refR.json()).object.sha;
+  }
   let done = 0;
   for (let i = 0; i < toProcess.length; i += CHUNK) {
     const chunk = toProcess.slice(i, i + CHUNK);
@@ -223,7 +271,19 @@ export default {
           toProcess.push(e);
         }
 
-        if (toProcess.length === 0) {
+        // 从【全部】entries 构建顺序与封面映射（已入库的也会补 idx/cover）
+        const favOrder = {};
+        const covers = {};
+        for (const e of entries) {
+          const vid = String(e.id || "").match(/\d{15,}/)?.[0];
+          if (!vid) continue;
+          if (typeof e.idx === "number") favOrder[vid] = e.idx;
+          const cu = coverToUrl(e.cover);
+          if (cu) covers[vid] = cu;
+        }
+
+        const hasData = Object.keys(favOrder).length || Object.keys(covers).length;
+        if (toProcess.length === 0 && !hasData) {
           return new Response(JSON.stringify({ created: 0, skipped }), {
             headers: { "Content-Type": "application/json", ...cors() },
           });
@@ -231,16 +291,29 @@ export default {
 
         // 立刻回 202，重活在后台跑；书签不会因等待而超时
         ctx.waitUntil(
-          processAll(env, toProcess, index).catch((err) => {
-            console.error("[douyin-ingest] 后台导入失败:", err.message);
-          })
+          (async () => {
+            try {
+              const newSha = await writeDataFiles(env, favOrder, covers);
+              const startSha = newSha || (await (async () => {
+                const r = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
+                if (!r.ok) throw new Error(`读分支失败: ${r.status}`);
+                return (await r.json()).object.sha;
+              })());
+              if (toProcess.length) {
+                await processAll(env, toProcess, index, startSha);
+              }
+            } catch (err) {
+              console.error("[douyin-ingest] 后台任务失败:", err.message);
+            }
+          })()
         );
 
         return new Response(
           JSON.stringify({
             queued: toProcess.length,
             skipped,
-            message: "已接收，正在后台分批导入，约 1-3 分钟后刷新站点查看",
+            updated: Object.keys(favOrder).length,
+            message: "已接收，正在后台更新顺序/封面并分批导入，约 1-3 分钟后刷新站点查看",
           }),
           { status: 202, headers: { "Content-Type": "application/json", ...cors() } }
         );
