@@ -1,0 +1,17 @@
+name = "marginalia-douyin-ingest"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# 抖音收藏 → 站点自动入库的中介 Worker。
+# 书签在抖音页用登录态提取收藏列表，POST 到这里；Worker 用 GitHub token
+# 自动建 _videos/*.md、拉封面、提交（提交触发 pages.yml 自动部署）。
+#
+# 部署后需设置 secret（持有 marginalia-site 仓库 contents:write 权限的 fine-grained PAT）：
+#   wrangler secret put GH_TOKEN --name marginalia-douyin-ingest
+
+[vars]
+REPO_OWNER = "evener920"
+REPO_NAME  = "marginalia-site"
+BRANCH     = "main"
+# 维护已导入 id → 文件名 的索引，避免重复导入（Worker 每次只读这一个文件做去重）
+INDEX_PATH = "data/douyin_index.json"

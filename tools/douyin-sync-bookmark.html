@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>抖音收藏一键同步书签 · 拖我到收藏夹</title>
+<style>
+  body { font:16px/1.7 -apple-system,"PingFang SC",sans-serif; max-width:760px; margin:40px auto; padding:0 20px; color:#2b2b2b; }
+  h1 { font-size:22px; }
+  label { font-weight:600; }
+  input { width:100%; padding:9px 11px; border:1px solid #c9a86a; border-radius:8px; font-size:15px; box-sizing:border-box; margin:6px 0 4px; }
+  .btn { display:inline-block; padding:13px 24px; background:#7a2e2e; color:#fff; border-radius:10px; font-size:18px; cursor:grab; text-decoration:none; user-select:none; }
+  .btn:active { cursor:grabbing; }
+  ol { padding-left:20px; }
+  code { background:#f3efe7; padding:2px 6px; border-radius:5px; }
+  .note { background:#faf6ef; border-left:4px solid #c9a86a; padding:10px 14px; border-radius:6px; }
+  .warn { background:#fff4f0; border-left:4px solid #c96a6a; padding:10px 14px; border-radius:6px; }
+  .hint { color:#888; font-size:13px; }
+</style>
+</head>
+<body>
+  <h1>抖音收藏 · 一键同步书签生成器</h1>
+  <p>这个书签是真正的「自动同步按钮」：在抖音<strong>收藏列表页</strong>（或单个视频页）点它，会用你的登录态把页面上所有视频提取出来，直接推送给站点的入库 Worker，<strong>自动建视频页 + 拉封面 + 部署</strong>。全程<strong>不用复制粘贴</strong>。</p>
+
+  <p><label for="worker">① 填入你的入库 Worker 地址</label>
+  <input id="worker" placeholder="https://marginalia-douyin-ingest.xxx.workers.dev" value="">
+  <span class="hint">部署 Worker 后获得，形如 https://xxxx.workers.dev（不要带结尾斜杠）。</span></p>
+
+  <p><a class="btn" id="bm" href="#">📌 抖音收藏同步</a> <span class="hint">把上面这个按钮拖到浏览器收藏夹栏</span></p>
+
+  <div class="note">
+    <strong>用法：</strong>
+    <ol>
+      <li>打开抖音收藏夹页面（<code>douyin.com/user/self?showTab=favorite_collection</code>）。</li>
+      <li>把页面<strong>滚动到底部</strong>，让所有视频卡片都加载出来。</li>
+      <li>点收藏夹栏的「抖音收藏同步」→ 自动提取并推送。</li>
+      <li>弹出「新增 N 条，正在部署」即成功，约 1 分钟后刷新站点即可看到。</li>
+    </ol>
+  </div>
+
+  <div class="warn">
+    <strong>前提：</strong>Worker 必须已部署且设置好 <code>GH_TOKEN</code> secret（持有 marginalia-site 仓库 contents 写权限的 fine-grained PAT）。否则推送会失败，书签会弹错误提示。
+  </div>
+
+  <p class="hint">注：若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
+
+<script>
+function buildBookmarklet(worker) {
+  // 注意：下面 this 字符串里的双引号会被 encodeURIComponent 转义，安全。
+  return [
+    "(function(){",
+    "var W='", worker, "';",
+    "if(!W){alert('书签未配置 Worker 地址，请在生成页填入。');return;}",
+    "function qa(s){return [].slice.call(document.querySelectorAll(s));}",
+    "var seen={},entries=[];",
+    "qa('a[href*=\"/video/\"]').forEach(function(a){",
+    "  var m=a.href.match(/video\\/(\\d+)/);if(!m)return;",
+    "  var id=m[1];if(seen[id])return;seen[id]=1;",
+    "  var img=a.querySelector('img');",
+    "  var cover=img?img.src:'';",
+    "  var title=(img&&img.alt)||a.getAttribute('title')||a.textContent.trim().slice(0,80)||'';",
+    "  entries.push({id:id,title:title,url:a.href,cover:cover});",
+    "});",
+    "if(entries.length===0){",
+    "  var idm=location.href.match(/(?:video|note)\\/(\\d+)/);",
+    "  if(idm){var v=document.querySelector('video');",
+    "    var cov=document.querySelector('meta[property=\"og:image\"]')?document.querySelector('meta[property=\"og:image\"]').content:(v&&v.poster||'');",
+    "    var ti=document.querySelector('meta[property=\"og:title\"]')?document.querySelector('meta[property=\"og:title\"]').content:document.title;",
+    "    entries.push({id:idm[1],title:ti,url:location.href,cover:cov});}",
+    "}",
+    "if(entries.length===0){alert('没找到视频。请在抖音收藏列表页或单个视频页使用（并先滚动加载全部）。');return;}",
+    "var btn=document.createElement('div');btn.textContent='正在同步 '+entries.length+' 条…';",
+    "btn.style.cssText='position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:99999;background:#7a2e2e;color:#fff;padding:10px 18px;border-radius:10px;font:14px/1 sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3)';",
+    "document.body.appendChild(btn);",
+    "fetch(W+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:entries})})",
+    ".then(function(r){return r.json();})",
+    ".then(function(d){btn.textContent='完成：新增 '+(d.created||0)+' 条，跳过 '+(d.skipped||0)+' 条'+(d.error?('，错误：'+d.error):'')+'，网站正在部署…';",
+    "  setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 4000);})",
+    ".catch(function(e){btn.textContent='同步失败：'+e.message+'（可能是抖音 CSP 拦截，改用 covers 书签导出后发我）';",
+    "  setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 6000);});",
+    "})();"
+  ].join("\n");
+}
+
+var inp = document.getElementById('worker');
+var bm = document.getElementById('bm');
+function refresh() {
+  var w = inp.value.trim().replace(/\/+$/, '');
+  bm.href = 'javascript:' + encodeURIComponent(buildBookmarklet(w));
+}
+inp.addEventListener('input', refresh);
+refresh();
+</script>
+</body>
+</html>
