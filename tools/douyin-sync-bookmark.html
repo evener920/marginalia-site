@@ -52,6 +52,21 @@
     <strong>⚠ 安装方式（很重要）：</strong>Chrome / 新版 Edge 从网页<strong>拖拽</strong> <code>javascript:</code> 书签时会<strong>静默剥掉协议</strong>，书签点下去完全没反应——你之前八成就是卡在这。正确做法：点「📋 复制书签代码」→ 在收藏夹栏<strong>右键 → 添加网页</strong> → 名称随意、<strong>网址栏粘贴</strong>刚才复制的内容。Firefox / Safari 可直接拖拽。
   </div>
 
+  <div class="note" style="border-left-color:#7a2e2e">
+    <strong>💡 推荐方案：用户脚本按钮版（彻底避免「点击没反应」）</strong>
+    <p>Chrome / Edge 从网页安装 <code>javascript:</code> 书签时，会静默剥掉协议前缀，导致点击毫无反应——你之前大概率卡在这。改用浏览器扩展 <strong>Tampermonkey / Violentmonkey</strong> 安装下面的用户脚本，它会在抖音页面右下角常驻一个「抖音收藏同步」按钮，点一下就同步，永久有效、不怕被剥。</p>
+    <ol>
+      <li>在 Chrome 网上应用店搜 <strong>Tampermonkey</strong> 安装（已装则跳过）。</li>
+      <li>点下面「📥 下载用户脚本」用 Tampermonkey 打开即自动提示安装；或点「📋 复制用户脚本」后在 Tampermonkey「新建脚本」里粘贴保存。</li>
+      <li>打开抖音收藏页，右下角会出现「抖音收藏同步」按钮，点它就同步（逻辑与书签完全一致：增量跳过已收录、自动滚动到新内容、推送后自动出文字稿）。</li>
+    </ol>
+    <p>
+      <a class="btn" id="dlUser" href="douyin-sync.user.js" download style="background:#7a2e2e">📥 下载用户脚本</a>
+      <button id="copyUser" class="btn" style="background:#7a2e2e">📋 复制用户脚本</button>
+    </p>
+    <p class="hint">脚本源码也可直接打开 <code>tools/douyin-sync.user.js</code> 查看。</p>
+  </div>
+
   <p class="hint">注：自动滚动期间不要手动滚动或切换标签页，以免打断加载。若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
 
 <script>
@@ -186,6 +201,19 @@ copyBtn.addEventListener('click', function () {
     ta.select(); document.execCommand('copy'); done();
   }
 });
+
+// 复制用户脚本内容（供 Tampermonkey 安装，避免 javascript: 书签被 Chrome 剥协议）
+var copyUserBtn = document.getElementById('copyUser');
+if (copyUserBtn) {
+  copyUserBtn.addEventListener('click', function () {
+    fetch('douyin-sync.user.js').then(function (r) { return r.text(); }).then(function (txt) {
+      function flash() { var o = copyUserBtn.textContent; copyUserBtn.textContent = '✓ 已复制，去 Tampermonkey 新建脚本粘贴'; setTimeout(function () { copyUserBtn.textContent = o; }, 2800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(flash).catch(function () { window.prompt('复制失败，请手动全选复制：', txt); });
+      } else { window.prompt('复制失败，请手动全选复制：', txt); }
+    }).catch(function () { alert('读取脚本失败，请直接打开 tools/douyin-sync.user.js 复制内容。'); });
+  });
+}
 </script>
 </body>
 </html>
