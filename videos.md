@@ -281,6 +281,50 @@ wide: true
 <div class="videos-empty">暂无视频。第一条周报即将上线。</div>
 {% else %}
 <section data-filter data-filter-all="全部" data-filter-order="AI 周报,抖音收藏,专题" data-page-size="20">
+{% assign tr_total = site.videos.size %}
+{% assign tr_done = site.videos | where_exp: "v", "v.content contains 'transcript-block'" | size %}
+{% assign tr_pending = tr_total | minus: tr_done %}
+{% assign tr_pct = tr_done | times: 100 | divided_by: tr_total %}
+<style>
+  .tr-progress { margin: 0 0 1.4rem; padding: .85rem 1rem; border: 1px solid var(--rule); border-radius: 3px; background: var(--bg-tint); font-family: var(--sans); }
+  .tr-progress__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .tr-progress__label { font-size: .82rem; letter-spacing: .04em; color: var(--ink); font-weight: 600; }
+  .tr-progress__count { font-size: .8rem; color: var(--muted); }
+  .tr-progress__count b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .tr-progress__bar { margin: .55rem 0 .4rem; height: 6px; border-radius: 3px; background: rgba(31,29,27,.1); overflow: hidden; }
+  .tr-progress__bar span { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
+  .tr-progress__meta { font-size: .74rem; color: var(--muted); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  .video-modal__msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2rem; text-align: center; color: #fbf8f1; font-family: var(--sans); font-size: .95rem; line-height: 1.6; }
+</style>
+<div class="tr-progress" id="trProgress" data-total="{{ tr_total }}" data-done="{{ tr_done }}" data-pending="{{ tr_pending }}">
+  <div class="tr-progress__head">
+    <span class="tr-progress__label">📝 文字稿自动转写</span>
+    <span class="tr-progress__count"><b id="trDone">{{ tr_done }}</b> / {{ tr_total }} · 待 <b id="trPending">{{ tr_pending }}</b> 条</span>
+  </div>
+  <div class="tr-progress__bar"><span id="trBar" style="width:{{ tr_pct }}%"></span></div>
+  <div class="tr-progress__meta" id="trMeta"></div>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('trProgress'); if (!box) return;
+  var total = +box.dataset.total, pending = +box.dataset.pending;
+  var meta = document.getElementById('trMeta');
+  var bar = document.getElementById('trBar');
+  var CYCLE = 120; // 守护进程每 120s 一轮
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function tick() {
+    if (pending <= 0) {
+      if (bar) bar.style.width = '100%';
+      meta.textContent = '✅ 全部 ' + total + ' 条视频已转写完成';
+      return;
+    }
+    var now = Math.floor(Date.now() / 1000);
+    var secs = CYCLE - (now % CYCLE);
+    meta.textContent = '守护进程每 2 分钟自动轮询一轮转写 · 距下一轮 ' + pad(Math.floor(secs / 60)) + ':' + pad(secs % 60) + '（新视频通常 1–2 轮内出稿，刷新本页查看最新进度）';
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
   <div class="videos-toolbar">
     <div class="mg-filter-bar" data-filter-chips></div>
     <div class="mg-view-toggle" role="group" aria-label="视图切换">
@@ -292,7 +336,7 @@ wide: true
     {% for v in videos %}
     {% if v.tags contains 'weekly' %}{% assign vcat = 'AI 周报' %}{% elsif v.tags contains 'douyin' %}{% assign vcat = '抖音收藏' %}{% else %}{% assign vcat = '专题' %}{% endif %}
     <li data-cats="{{ vcat }}">
-      <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}" data-modal="douyin" data-douyin-id="{{ v.douyin_id }}" data-title="{{ v.title | escape }}">
+      <a class="poster{% unless v.poster %} poster--source{% endunless %}" href="{{ v.url | relative_url }}" aria-label="{{ v.title | escape }}" data-modal="{% if v.douyin_id %}douyin{% elsif v.bvid %}bilibili{% elsif v.video_url %}file{% else %}none{% endif %}" data-douyin-id="{{ v.douyin_id }}" data-bvid="{{ v.bvid }}" data-video-src="{{ v.video_url }}" data-title="{{ v.title | escape }}">
         {% if v.poster and v.poster != "" %}<img src="{% if v.poster contains '://' %}{{ v.poster }}{% else %}{{ v.poster | relative_url }}{% endif %}" alt="" loading="lazy" onerror="mgImgFail(this)">
         {% elsif v.tags contains 'douyin' %}{% assign gidx = v.title | size | modulo: 5 %}<span class="frame-cover frame-cover--{{ gidx }}"><span class="frame-cover-char">{{ v.title | slice: 0, 1 }}</span><span class="frame-cover-tag">抖音收藏</span></span>{% endif %}
         <span class="play"></span>
@@ -429,6 +473,13 @@ function mgImgFail(img) {
   var titleEl = document.getElementById('videoModalTitle');
   var lastFocus = null;
 
+  function msg(text) {
+    var d = document.createElement('div');
+    d.className = 'video-modal__msg';
+    d.textContent = text;
+    stage.appendChild(d);
+    return true;
+  }
   function build(anchor) {
     var type = anchor.getAttribute('data-modal');
     var title = anchor.getAttribute('data-title') || '';
@@ -436,7 +487,7 @@ function mgImgFail(img) {
     stage.innerHTML = '';
     if (type === 'douyin') {
       var id = anchor.getAttribute('data-douyin-id');
-      if (!id) return false;
+      if (!id) return msg('该抖音视频暂无可播放的 ID');
       var f = document.createElement('iframe');
       f.src = 'https://open.douyin.com/player/video?vid=' + encodeURIComponent(id) + '&autoplay=1';
       f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture');
@@ -445,15 +496,29 @@ function mgImgFail(img) {
       stage.appendChild(f);
       return true;
     }
+    if (type === 'bilibili') {
+      var bv = anchor.getAttribute('data-bvid');
+      if (!bv) return msg('该视频暂无可播放的 BVID');
+      var bf = document.createElement('iframe');
+      bf.src = 'https://player.bilibili.com/player.html?bvid=' + encodeURIComponent(bv) + '&autoplay=1&high_quality=1&danmaku=0';
+      bf.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture');
+      bf.setAttribute('allowfullscreen', '');
+      bf.setAttribute('referrerpolicy', 'no-referrer');
+      bf.setAttribute('scrolling', 'no');
+      bf.frameBorder = '0';
+      stage.appendChild(bf);
+      return true;
+    }
     if (type === 'file') {
       var src = anchor.getAttribute('data-video-src');
-      if (!src) return false;
+      if (!src) return msg('该视频暂无可播放的地址');
       var v = document.createElement('video');
       v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true;
       stage.appendChild(v);
       return true;
     }
-    return false;
+    if (type === 'none') return msg('该视频暂未接入可播放源');
+    return msg('暂不支持该视频来源：' + (type || '未知'));
   }
 
   function openModal(anchor) {
