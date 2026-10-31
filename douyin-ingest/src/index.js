@@ -42,6 +42,23 @@ function coverToUrl(raw) {
   return "";
 }
 
+// 提取视频 id（15+ 位数字），多处复用
+function vidOf(e) {
+  return String((e && e.id) || "").match(/\d{15,}/)?.[0];
+}
+
+// 读取仓库里某个 JSON 文件，不存在或损坏返回 null
+async function readJson(env, path) {
+  const r = await ghFetch(env, `/contents/${path}?ref=${env.BRANCH}`);
+  if (!r.ok) return null;
+  try {
+    const data = await r.json();
+    return JSON.parse(Buffer.from(data.content, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
 // 与 tools/import_douyin.py 的 slugify 保持一致：白名单保留 CJK/字母/数字/_
 function slugify(title) {
   const s = (title || "").normalize("NFC");
@@ -198,26 +215,56 @@ async function readSyncLog(env) {
   }
 }
 
-// 把「id→收藏位置」和「id→封面 URL」写成 _data/ 下两份 JSON，
-// 供站点 JS 重排视频顺序 + 给缺封面的卡片补真实图。
-// 每次同步都发送完整的当前收藏列表，因此这两份直接整体覆盖即可。
-// 同时把本次同步的 syncEntry 追加进 _data/douyin_sync_log.json（总是写，即使无变化）。
-async function writeDataFiles(env, favOrder, covers, syncEntry) {
+// 增量合并：只把「本次新增」追加进顺序/封面映射，绝不整文件覆盖。
+// 顺序用单调排序键（越小越靠前）：新内容取「当前最小值 - N」，自然排到顶部，
+// 且跨多次同步不会与历史值冲突（旧值一律保持不动，站点 videos.md 按值升序即正确）。
+async function writeDataFiles(env, newEntries, syncEntry) {
   const refR = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
   if (!refR.ok) throw new Error(`读分支失败: ${refR.status}`);
   let baseSha = (await refR.json()).object.sha;
   const baseTreeSha = await getBaseTreeSha(env, baseSha);
 
   const treeEntries = [];
-  if (Object.keys(favOrder).length) {
+
+  if (newEntries.length) {
+    const existingOrder = (await readJson(env, "_data/douyin_fav_order.json")) || {};
+    const existingCovers = (await readJson(env, "_data/douyin_covers.json")) || {};
+
+    // 封面：合并新增，保留已有
+    const covers = Object.assign({}, existingCovers);
+    for (const e of newEntries) {
+      const vid = vidOf(e); if (!vid) continue;
+      const cu = coverToUrl(e.cover);
+      if (cu) covers[vid] = cu;
+    }
+
+    // 顺序：新增排到顶部（值小于现有最小），不改动已有条目
+    const favOrder = Object.assign({}, existingOrder);
+    const vals = Object.values(favOrder).filter((v) => typeof v === "number");
+    const minVal = vals.length ? Math.min.apply(null, vals) : 0;
+    const start = minVal - newEntries.length; // i=0 最小→顶部；全部 < 现有最小值
+    newEntries.forEach((e, i) => {
+      const vid = vidOf(e); if (!vid) return;
+      if (favOrder[vid] != null) return;
+      favOrder[vid] = start + i;
+    });
+
+    syncEntry.order = Object.keys(favOrder).length;
+    syncEntry.covers = Object.keys(covers).length;
+
     const orderSha = await createBlob(env, utf8ToBase64(JSON.stringify(favOrder, null, 2)));
     treeEntries.push({ path: "_data/douyin_fav_order.json", mode: "100644", type: "blob", sha: orderSha });
-  }
-  if (Object.keys(covers).length) {
     const coversSha = await createBlob(env, utf8ToBase64(JSON.stringify(covers, null, 2)));
     treeEntries.push({ path: "_data/douyin_covers.json", mode: "100644", type: "blob", sha: coversSha });
+  } else {
+    // 无新增：顺序/封面不动，仅回填统计用于留痕
+    const o = await readJson(env, "_data/douyin_fav_order.json");
+    const c = await readJson(env, "_data/douyin_covers.json");
+    syncEntry.order = o ? Object.keys(o).length : 0;
+    syncEntry.covers = c ? Object.keys(c).length : 0;
   }
 
+  // 同步日志：总是追加一条（哪怕无新增也留痕），保留最近 50 条
   const log = await readSyncLog(env);
   log.unshift(syncEntry);
   const logSha = await createBlob(
@@ -233,7 +280,7 @@ async function writeDataFiles(env, favOrder, covers, syncEntry) {
   if (!treeR.ok) throw new Error(`建树失败: ${treeR.status}`);
   const treeSha = (await treeR.json()).sha;
   const commitR = await ghFetch(env, `/git/commits`, "POST", {
-    message: `data: 抖音同步 新增${syncEntry.created}/跳过${syncEntry.skipped}/映射${syncEntry.order} (via douyin-ingest)`,
+    message: `data: 抖音增量同步 新增${syncEntry.created}/跳过${syncEntry.skipped}/在册${syncEntry.order} (via douyin-ingest)`,
     tree: treeSha,
     parents: [baseSha],
   });
@@ -284,11 +331,11 @@ export default {
 
         const index = await getIndex(env);
 
-        // 先去重：已在索引里的 + 非法 id 都算 skipped
+        // 增量去重：已在索引里或非法 id 算 skipped，其余为「本次新增」
         const toProcess = [];
         let skipped = 0;
         for (const e of entries) {
-          const vid = String(e.id || "").match(/\d{15,}/)?.[0];
+          const vid = vidOf(e);
           if (!vid || index[vid]) {
             skipped++;
             continue;
@@ -296,23 +343,8 @@ export default {
           toProcess.push(e);
         }
 
-        // 从【全部】entries 构建顺序与封面映射（已入库的也会补 idx/cover）
-        const favOrder = {};
-        const covers = {};
-        for (const e of entries) {
-          const vid = String(e.id || "").match(/\d{15,}/)?.[0];
-          if (!vid) continue;
-          if (typeof e.idx === "number") favOrder[vid] = e.idx;
-          const cu = coverToUrl(e.cover);
-          if (cu) covers[vid] = cu;
-        }
-
-        const hasData = Object.keys(favOrder).length || Object.keys(covers).length;
-        if (toProcess.length === 0 && !hasData) {
-          return new Response(JSON.stringify({ created: 0, skipped }), {
-            headers: { "Content-Type": "application/json", ...cors() },
-          });
-        }
+        // 顺序/封面改为「增量合并」（见 writeDataFiles）：书签只需发送本次新增，
+        // 不必每次都滚动全量重传，Worker 也只在册条目上追加新内容。
 
         // 立刻回 202，重活在后台跑；书签不会因等待而超时
         ctx.waitUntil(
@@ -324,10 +356,10 @@ export default {
                 received: entries.length,
                 created: toProcess.length,
                 skipped,
-                order: Object.keys(favOrder).length,
-                covers: Object.keys(covers).length,
+                order: 0,
+                covers: 0,
               };
-              const newSha = await writeDataFiles(env, favOrder, covers, syncEntry);
+              const newSha = await writeDataFiles(env, toProcess, syncEntry);
               const startSha = newSha || (await (async () => {
                 const r = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
                 if (!r.ok) throw new Error(`读分支失败: ${r.status}`);
@@ -346,8 +378,8 @@ export default {
           JSON.stringify({
             queued: toProcess.length,
             skipped,
-            updated: Object.keys(favOrder).length,
-            message: "已接收，正在后台更新顺序/封面并分批导入，约 1-3 分钟后刷新站点查看",
+            updated: toProcess.length,
+            message: "已接收增量更新，正在后台合并顺序/封面并导入新视频，约 1-3 分钟后刷新站点查看",
           }),
           { status: 202, headers: { "Content-Type": "application/json", ...cors() } }
         );
@@ -358,6 +390,20 @@ export default {
         );
       }
     }
+    if (url.pathname === "/known" && request.method === "GET") {
+      try {
+        const index = await getIndex(env);
+        return new Response(JSON.stringify({ ids: Object.keys(index) }), {
+          headers: { "Content-Type": "application/json", ...cors() },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ ids: [], error: String(err.message || err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...cors() },
+        });
+      }
+    }
+
     return new Response("marginalia-douyin-ingest alive", {
       headers: { "Content-Type": "text/plain" },
     });

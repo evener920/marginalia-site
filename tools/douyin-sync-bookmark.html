@@ -38,9 +38,9 @@
     <strong>用法：</strong>
     <ol>
       <li>打开抖音收藏夹页面（<code>douyin.com/user/self?showTab=favorite_collection</code>）。</li>
-      <li>直接点收藏夹栏的「抖音收藏同步」即可——书签会<strong>自动滚动加载全部视频卡片</strong>，不用你手动滚。</li>
-      <li>页面顶部会显示「已加载 N 条，正在自动滚动加载更多…」，加载完自动提取并推送。</li>
-      <li>弹出「新增 N 条，正在部署」即成功，约 1 分钟后刷新站点即可看到。</li>
+      <li>直接点收藏夹栏的「抖音收藏同步」即可——书签会先问站点「已收录哪些」，然后<strong>只滚动到本次新增的内容、自动跳过已收录的</strong>，不用手动滚，也不用每次都翻完全部列表。</li>
+      <li>页面顶部会显示「已扫描 N 条，自动跳过已收录内容，滚动到新内容…」，碰到已收录的边界就停，自动提取新内容并推送。</li>
+      <li>弹出「发现 N 条新内容，已推送」即成功，约 1 分钟后刷新站点即可看到。</li>
     </ol>
   </div>
 
@@ -62,7 +62,7 @@ function buildBookmarklet(worker) {
     "var W='"+worker+"';",
     "if(!W){alert('书签未配置 Worker 地址，请在生成页填入。');return;}",
     "function qa(s){return [].slice.call(document.querySelectorAll(s));}",
-    "var store={}, order=[];",
+    "var store={}, order=[], known=null, knownStreak=0, totalSeen=0;",
     "function realCover(a){",
     "  var img=a.querySelector('img');if(!img)return '';",
     "  var c=[];",
@@ -79,10 +79,18 @@ function buildBookmarklet(worker) {
     "  qa('a[href*=\"/video/\"]').forEach(function(a){",
     "    var m=a.href.match(/video\\/(\\d+)/);if(!m)return;",
     "    var id=m[1];if(store[id])return;",
-    "    order.push(id);",
+    "    order.push(id);totalSeen++;",
+    "    if(known&&known.has(id)){knownStreak++;}else{knownStreak=0;}",
     "    var img=a.querySelector('img');",
     "    store[id]={id:id,title:(img&&img.alt)||a.getAttribute('title')||a.textContent.trim().slice(0,80)||'',url:a.href,cover:realCover(a)};",
     "  });",
+    "}",
+    "function cacheKnown(ids){try{localStorage.setItem('dyKnown',JSON.stringify(ids));}catch(e){}}",
+    "function loadCachedKnown(){try{var s=localStorage.getItem('dyKnown');return s?JSON.parse(s):null;}catch(e){return null;}}",
+    "function fetchKnown(){",
+    "  return fetch(W+'/known',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){",
+    "    if(d&&Array.isArray(d.ids)&&d.ids.length){cacheKnown(d.ids);return new Set(d.ids);}throw 0;",
+    "  }).catch(function(){var c=loadCachedKnown();return c?new Set(c):null;});",
     "}",
     "var btn=document.createElement('div');",
     "btn.style.cssText='position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:99999;background:#7a2e2e;color:#fff;padding:10px 18px;border-radius:10px;font:14px/1.4 sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:82vw;text-align:center';",
@@ -105,19 +113,22 @@ function buildBookmarklet(worker) {
     "var tries=0, stable=0, MAX=120, last=0;",
     "function step(){",
     "  collect();var total=Object.keys(store).length;",
-    "  setStatus('已扫描 '+total+' 条，正在自动滚动加载更多…（'+(tries+1)+'）');",
+    "  setStatus('已扫描 '+total+(known?(' 条，自动跳过已收录内容，滚动到新内容…'):' 条（首次全量同步）')+'（'+(tries+1)+'）');",
     "  scrollAll();",
     "  setTimeout(function(){",
     "    collect();var now=Object.keys(store).length;",
     "    tries++;",
     "    if(now>last){stable=0;}else{stable++;}",
     "    last=now;",
-    "    if(stable>=3||tries>=MAX){finish();}else{step();}",
+    "    if(knownStreak>=10||stable>=3||tries>=MAX){finish();}else{step();}",
     "  }, 900);",
     "}",
     "function finish(){",
     "  var entries=order.map(function(k){return store[k];}).filter(Boolean);",
+    "  var skippedKnown=0;",
+    "  if(known){var before=entries.length;entries=entries.filter(function(e){return !known.has(e.id);});skippedKnown=before-entries.length;}",
     "  entries.forEach(function(e,i){e.idx=i;});",
+    "  if(entries.length===0&&skippedKnown>0){setStatus('没有新内容（已自动跳过 '+skippedKnown+' 条已收录）。收藏有更新时点我再同步。');setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);},5000);return;}",
     "  if(entries.length===0){",
     "    var idm=location.href.match(/(?:video|note)\\/(\\d+)/);",
     "    if(idm){var v=document.querySelector('video');",
@@ -126,7 +137,7 @@ function buildBookmarklet(worker) {
     "      entries.push({id:idm[1],idx:0,title:ti,url:location.href,cover:cov});}",
     "  }",
     "  if(entries.length===0){setStatus('没找到视频。请在抖音收藏列表页或单个视频页使用。');setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);},5000);return;}",
-    "  setStatus('共 '+entries.length+' 条，正在推送到入库 Worker…');",
+    "  setStatus('发现 '+entries.length+' 条新内容（已自动跳过 '+skippedKnown+' 条已有），正在推送到入库 Worker…');",
     "  fetch(W+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:entries})})",
     "  .then(function(r){return r.json();})",
     "  .then(function(d){",
@@ -136,7 +147,7 @@ function buildBookmarklet(worker) {
     "  .catch(function(e){setStatus('同步失败：'+e.message+'（可能是抖音 CSP 拦截，改用 covers 书签导出后发我）');",
     "    setTimeout(function(){if(btn.parentNode)btn.parentNode.removeChild(btn);}, 7000);});",
     "}",
-    "step();",
+    "fetchKnown().then(function(set){known=set;step();});",
     "})();"
   ].join("\n");
 }
