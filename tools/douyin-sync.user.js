@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         抖音收藏同步 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.3
-// @description  在抖音收藏页注入可拖动的「抖音收藏同步」浮动按钮：点击立即给反馈、扫描实时可见、自动跳过已收录、自动拉文字稿；结束弹出明确总结。不依赖 javascript: 书签。
+// @version      1.4
+// @description  在抖音收藏页注入可拖动的「抖音收藏同步」浮动按钮：点击立即反馈、扫描实时可见、自动跳过已收录、自动拉文字稿；用 GM_xmlhttpRequest 绕过抖音页面 CSP 拦截，结束弹出明确总结。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
-// @grant        none
+// @connect      *
+// @grant        GM_xmlhttpRequest
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -14,6 +15,40 @@
 
   // 如需更换入库 Worker，改这一行即可（与书签生成器预填地址保持一致）
   const WORKER = 'https://marginalia-douyin-ingest.evener920.workers.dev';
+
+  // GM_xmlhttpRequest 在扩展特权上下文发请求，绕过抖音页面的 CSP（connect-src）拦截。
+  // 包装成 Promise，接口与 fetch 类似。
+  function gmFetch(url, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve, reject) {
+      if (typeof GM_xmlhttpRequest === 'undefined') {
+        // 兜底：某些管理器不支持 GM_xmlhttpRequest 时退回原生 fetch（仍可能受 CSP 影响）
+        var f = opts.method || 'GET';
+        var init = { method: f, headers: opts.headers || {} };
+        if (opts.body) init.body = opts.body;
+        fetch(url, init).then(function (r) {
+          r.text().then(function (txt) {
+            var data; try { data = JSON.parse(txt); } catch (e) { data = txt; }
+            resolve({ status: r.status, data: data });
+          });
+        }).catch(function (e) { reject(e); });
+        return;
+      }
+      GM_xmlhttpRequest({
+        method: opts.method || 'GET',
+        url: url,
+        headers: opts.headers || {},
+        data: opts.body,
+        timeout: 60000,
+        onload: function (r) {
+          var data; try { data = JSON.parse(r.responseText); } catch (e) { data = r.responseText; }
+          resolve({ status: r.status, data: data });
+        },
+        onerror: function (e) { reject(new Error((e && e.error) || 'network error (GM_xmlhttpRequest)')); },
+        ontimeout: function () { reject(new Error('请求超时')); },
+      });
+    });
+  }
 
   function runSync(btn) {
     if (btn.dataset.busy === '1') return; // 防重复点击
@@ -83,8 +118,10 @@
     function cacheKnown(ids) { try { localStorage.setItem('dyKnown', JSON.stringify(ids)); } catch (e) {} }
     function loadCachedKnown() { try { var s = localStorage.getItem('dyKnown'); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
     function fetchKnown() {
-      return fetch(W + '/known', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && Array.isArray(d.ids) && d.ids.length) { cacheKnown(d.ids); return new Set(d.ids); } throw 0;
+      return gmFetch(W + '/known', { method: 'GET' }).then(function (r) {
+        var d = r.data;
+        if (d && Array.isArray(d.ids) && d.ids.length) { cacheKnown(d.ids); return new Set(d.ids); }
+        throw 0;
       }).catch(function () { var c = loadCachedKnown(); return c ? new Set(c) : null; });
     }
 
@@ -149,29 +186,30 @@
 
       // 有内容，推送
       setStatus('发现 ' + entries.length + ' 条新内容（已自动跳过 ' + skippedKnown + ' 条已有），正在推送到入库 Worker…');
-      fetch(W + '/ingest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries: entries }) })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          var queued = (d.queued != null) ? d.queued : (d.created || 0);
-          var skipped = (d.queued != null) ? (d.skipped || 0) : (d.skipped || 0);
-          var updated = (d.updated || 0);
-          var summary =
-            '✅ 同步完成\n\n' +
-            '• 新增收录：' + queued + ' 条\n' +
-            '• 自动跳过已收录：' + (skippedKnown + skipped) + ' 条\n' +
-            (updated ? ('• 更新顺序/封面：' + updated + ' 条\n') : '') +
-            '\n接下来会自动发生：\n' +
-            '1. 视频页约 1–3 分钟上线（Worker 后台建页并部署）\n' +
-            '2. 文字稿由守护进程在几分钟内自动转写并回填，无需再操作';
-          setStatus('已接收 ' + queued + ' 条（跳过 ' + (skippedKnown + skipped) + ' 条已收录），视频页约 1-3 分钟上线，文字稿自动回填');
-          alert(summary);
-        })
-        .catch(function (e) {
-          var msgErr = '❌ 同步失败\n\n' + e.message + '\n\n可能是抖音 CSP 拦截了跨域请求。\n可改用「抖音封面导出」书签导出 covers.txt 发我跑脚本。';
-          setStatus('同步失败：' + e.message + '（可能是抖音 CSP 拦截，改用 covers 书签导出后发我）');
-          alert(msgErr);
-        })
-        .then(function () { restoreBtn(); closeBar(8000); });
+      gmFetch(W + '/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: entries }),
+      }).then(function (r) {
+        var d = r.data || {};
+        var queued = (d.queued != null) ? d.queued : (d.created || 0);
+        var skipped = (d.skipped || 0);
+        var updated = (d.updated || 0);
+        var summary =
+          '✅ 同步完成\n\n' +
+          '• 新增收录：' + queued + ' 条\n' +
+          '• 自动跳过已收录：' + (skippedKnown + skipped) + ' 条\n' +
+          (updated ? ('• 更新顺序/封面：' + updated + ' 条\n') : '') +
+          '\n接下来会自动发生：\n' +
+          '1. 视频页约 1–3 分钟上线（Worker 后台建页并部署）\n' +
+          '2. 文字稿由守护进程在几分钟内自动转写并回填，无需再操作';
+        setStatus('已接收 ' + queued + ' 条（跳过 ' + (skippedKnown + skipped) + ' 条已收录），视频页约 1-3 分钟上线，文字稿自动回填');
+        alert(summary);
+      }).catch(function (e) {
+        var msgErr = '❌ 同步失败\n\n' + e.message + '\n\n请稍后重试；若持续失败，可能是网络环境限制了对外请求。';
+        setStatus('同步失败：' + e.message);
+        alert(msgErr);
+      }).then(function () { restoreBtn(); closeBar(8000); });
     }
 
     // 关键：先立即开始扫描（消除"点了没反应"的空窗），known 在后台解析后用于跳过
