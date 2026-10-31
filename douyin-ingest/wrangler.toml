@@ -15,3 +15,9 @@ REPO_NAME  = "marginalia-site"
 BRANCH     = "main"
 # 维护已导入 id → 文件名 的索引，避免重复导入（Worker 每次只读这一个文件做去重）
 INDEX_PATH = "data/douyin_index.json"
+
+# 文字稿转写统计：用 KV 存「已转写视频 id 集合」(key=tr:<id>)，
+# /stats 端点 list 其 keys 数即得 transcribed；/ingest 维护 total 计数。
+[[kv_namespaces]]
+binding = "STATS"
+id = "422d2b82250c46238a7095c7d3559189"

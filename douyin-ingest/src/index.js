@@ -141,7 +141,7 @@ function buildMd(title, vid, posterRel) {
 function cors() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
@@ -419,6 +419,9 @@ export default {
               })());
               if (toProcess.length) {
                 await processAll(env, toProcess, index, startSha);
+                // 维护 KV 总视频数（用于 /stats 的 total）
+                const cur = parseInt(await env.STATS.get("total")) || 0;
+                await env.STATS.put("total", String(cur + toProcess.length));
               }
             } catch (err) {
               console.error("[douyin-ingest] 后台任务失败:", err.message);
@@ -477,6 +480,11 @@ export default {
           });
         }
         const res = await appendTranscript(env, file, text);
+        // 标记该视频已有文稿（幂等），供 /stats 统计 transcribed。
+        // ok=新写入 / skipped=已有文稿 都算「已转写」；pending/error 不计。
+        if (res.status === "ok" || res.status === "skipped") {
+          ctx.waitUntil(env.STATS.put("tr:" + id, "1"));
+        }
         return new Response(JSON.stringify(res), {
           headers: { "Content-Type": "application/json" },
         });
@@ -484,6 +492,25 @@ export default {
         return new Response(
           JSON.stringify({ status: "error", error: String(err.message || err) }),
           { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    if (url.pathname === "/stats" && request.method === "GET") {
+      try {
+        const total = parseInt(await env.STATS.get("total")) || 0;
+        // transcribed = 已转写视频 id 集合的大小（自愈：守护进程每轮对已有视频
+        // POST /transcript 返回 skipped 会自动 put tr:<id>，集合逐步补全）。
+        const listed = await env.STATS.list({ prefix: "tr:" });
+        const transcribed = listed.keys.length;
+        return new Response(
+          JSON.stringify({ total, transcribed, ts: Date.now() }),
+          { headers: { "Content-Type": "application/json", ...cors() } }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: String(err.message || err) }),
+          { status: 500, headers: { "Content-Type": "application/json", ...cors() } }
         );
       }
     }

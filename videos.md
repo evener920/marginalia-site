@@ -291,6 +291,11 @@ wide: true
   .tr-progress__label { font-size: .82rem; letter-spacing: .04em; color: var(--ink); font-weight: 600; }
   .tr-progress__count { font-size: .8rem; color: var(--muted); }
   .tr-progress__count b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .tr-progress__head-right { display: flex; align-items: center; gap: .55rem; }
+  .tr-progress__refresh { font-size: .95rem; line-height: 1; padding: .22rem .45rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; transition: color .2s, border-color .2s, transform .25s; }
+  .tr-progress__refresh:hover { color: var(--accent); border-color: var(--accent); }
+  .tr-progress__refresh:active { transform: rotate(180deg); }
+  .tr-progress__refresh:disabled { opacity: .5; cursor: default; }
   .tr-progress__bar { margin: .55rem 0 .4rem; height: 6px; border-radius: 3px; background: rgba(31,29,27,.1); overflow: hidden; }
   .tr-progress__bar span { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
   .tr-progress__meta { font-size: .74rem; color: var(--muted); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
@@ -299,7 +304,10 @@ wide: true
 <div class="tr-progress" id="trProgress" data-total="{{ tr_total }}" data-done="{{ tr_done }}" data-pending="{{ tr_pending }}">
   <div class="tr-progress__head">
     <span class="tr-progress__label">📝 文字稿自动转写</span>
-    <span class="tr-progress__count"><b id="trDone">{{ tr_done }}</b> / {{ tr_total }} · 待 <b id="trPending">{{ tr_pending }}</b> 条</span>
+    <span class="tr-progress__head-right">
+      <span class="tr-progress__count"><b id="trDone">{{ tr_done }}</b> / {{ tr_total }} · 待 <b id="trPending">{{ tr_pending }}</b> 条</span>
+      <button type="button" id="trRefresh" class="tr-progress__refresh" title="刷新实时进度" aria-label="刷新进度">↻</button>
+    </span>
   </div>
   <div class="tr-progress__bar"><span id="trBar" style="width:{{ tr_pct }}%"></span></div>
   <div class="tr-progress__meta" id="trMeta"></div>
@@ -307,11 +315,22 @@ wide: true
 <script>
 (function () {
   var box = document.getElementById('trProgress'); if (!box) return;
-  var total = +box.dataset.total, pending = +box.dataset.pending;
   var meta = document.getElementById('trMeta');
   var bar = document.getElementById('trBar');
+  var doneEl = document.getElementById('trDone');
+  var pendEl = document.getElementById('trPending');
   var CYCLE = 120; // 守护进程每 120s 一轮
+  // 初始用构建时快照；随后由 /stats 实时校正
+  var total = +box.dataset.total || 0;
+  var done = +box.dataset.done || 0;
+  var pending = +box.dataset.pending || 0;
+  var STATS_URL = 'https://transcribe.201573.xyz/douyin-ingest/stats';
   function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function render() {
+    if (doneEl) doneEl.textContent = done;
+    if (pendEl) pendEl.textContent = pending;
+    if (bar) bar.style.width = (total > 0 ? Math.round(done / total * 100) : 0) + '%';
+  }
   function tick() {
     if (pending <= 0) {
       if (bar) bar.style.width = '100%';
@@ -320,9 +339,32 @@ wide: true
     }
     var now = Math.floor(Date.now() / 1000);
     var secs = CYCLE - (now % CYCLE);
-    meta.textContent = '守护进程每 2 分钟自动轮询一轮转写 · 距下一轮 ' + pad(Math.floor(secs / 60)) + ':' + pad(secs % 60) + '（新视频通常 1–2 轮内出稿，刷新本页查看最新进度）';
+    meta.textContent = '守护进程每 2 分钟自动轮询一轮转写 · 距下一轮 ' + pad(Math.floor(secs / 60)) + ':' + pad(secs % 60) + '（新视频通常 1–2 轮内出稿）';
   }
-  tick(); setInterval(tick, 1000);
+  function refreshStats() {
+    fetch(STATS_URL, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        if (d.total) total = d.total;
+        if (typeof d.transcribed === 'number') {
+          done = d.transcribed;
+          pending = Math.max(0, total - done);
+          render(); tick();
+        }
+      })
+      .catch(function () { /* 网络异常时保留构建时快照，不闪烁 */ });
+  }
+  render(); tick();
+  setInterval(tick, 1000);
+  setInterval(refreshStats, 30000);
+  refreshStats(); // 进页面立即拉一次
+  var btn = document.getElementById('trRefresh');
+  if (btn) btn.addEventListener('click', function () {
+    btn.disabled = true;
+    refreshStats();
+    setTimeout(function () { btn.disabled = false; }, 1500);
+  });
 })();
 </script>
   <div class="videos-toolbar">
