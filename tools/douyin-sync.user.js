@@ -13,8 +13,9 @@
 (function () {
   'use strict';
 
+  // 经 VPS 反代后境内可达的地址（workers.dev 在大陆常被墙，故走 201573.xyz 反代）
   // 如需更换入库 Worker，改这一行即可（与书签生成器预填地址保持一致）
-  const WORKER = 'https://marginalia-douyin-ingest.evener920.workers.dev';
+  const WORKER = 'https://transcribe.201573.xyz/douyin-ingest';
 
   // GM_xmlhttpRequest 在扩展特权上下文发请求，绕过抖音页面的 CSP（connect-src）拦截。
   // 包装成 Promise，接口与 fetch 类似。
