@@ -3,9 +3,13 @@
 
 每 INTERVAL 秒一轮：
   1. 刷新 fav_order.json / douyin_index.json（GitHub raw，公开可读）
-  2. 枚举 todo（在 fav_order 但本地无 transcripts/<id>.txt）→ 并发转写
+  2. 枚举 todo（在 douyin_index 全集中、本地无 transcripts/<id>.txt、未被永久跳过）
+     → 并发转写；单条超时/失败累计 MAX_FAIL 次则写空稿永久跳过
   3. 对每个 transcripts/<id>.txt（非空、未发送）POST {id,file,text} 给 Worker /transcript
   4. ok/skipped 记入 sent.json（幂等），pending/出错留待下轮重试
+
+注意：todo 取 douyin_index 全集（站点在册全部视频），不取 fav_order（仅书签同步
+过的子集，历史上会漏掉大量条目，导致进度分母偏小、部分视频永远不转写）。
 
 复用 batch_transcribe 的转写引擎（transcribe_one / API / KEY / OUT）。
 """
@@ -26,8 +30,18 @@ TOKEN_FILE = pathlib.Path(f"{API_ROOT}/transcript_token.txt")
 FAV = pathlib.Path(f"{API_ROOT}/fav_order.json")
 INDEX = pathlib.Path(f"{API_ROOT}/douyin_index.json")
 SENT = pathlib.Path(f"{API_ROOT}/sent_transcripts.json")
+SKIP = pathlib.Path(f"{API_ROOT}/skipped_transcripts.json")
+FAILS = pathlib.Path(f"{API_ROOT}/transcribe_fails.json")
 INTERVAL = 40
 SEND_WORKERS = 5
+TRANSCRIBE_WORKERS = 5
+# 转写节奏控制。超长视频（数十小时）下载+ASR 会拖垮整轮，所以：
+#   BATCH_SIZE    每轮最多处理多少条（其余下一轮继续，避免单轮无限拉长）
+#   ROUND_BUDGET  本轮转写阶段的时间窗（秒），到点未完成的一律计一次失败
+#   MAX_FAIL      同一条累计失败 N 次即写空稿永久跳过，不再占主循环
+BATCH_SIZE = 25
+ROUND_BUDGET = 600
+MAX_FAIL = 2
 # Cloudflare 会拦截 Python-urllib 默认 UA（403/1010），必须用浏览器 UA 打 Worker。
 UA = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
@@ -81,16 +95,59 @@ def send_one(args):
         return vid, f"err:{e}"
 
 
+def run_transcribe(todo, fails, skip):
+    """并发转写；本轮时间窗内未完成的计一次失败，累计 MAX_FAIL 次写空稿永久跳过。
+
+    线程池用 shutdown(wait=False, cancel_futures=True) 而非 with：卡住的超长视频线程
+    无法被 Python 强杀，若等待 join 会重新阻塞主循环。未启动的任务取消，已启动的
+    留在后台自生自灭（进程常驻，泄漏线程数有限）。
+    """
+    batch = todo[:BATCH_SIZE]
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=TRANSCRIBE_WORKERS)
+    futs = {ex.submit(bt.transcribe_one, vid): vid for vid in batch}
+    done, _ = concurrent.futures.wait(futs, timeout=ROUND_BUDGET)
+    for f, vid in futs.items():
+        if f not in done:
+            log(f"  本轮时间窗({ROUND_BUDGET}s)内未完成: {vid}")
+            fails[vid] = fails.get(vid, 0) + 1
+            continue
+        try:
+            f.result(timeout=0)
+            fails.pop(vid, None)
+        except Exception as e:
+            log(f"  转写失败 {vid}: {e}")
+            fails[vid] = fails.get(vid, 0) + 1
+    try:
+        ex.shutdown(wait=False, cancel_futures=True)
+    except TypeError:  # Python < 3.9 无 cancel_futures
+        ex.shutdown(wait=False)
+
+    newly = []
+    for vid, n in list(fails.items()):
+        if n >= MAX_FAIL and vid not in skip:
+            (bt.OUT / f"{vid}.txt").write_text("", encoding="utf-8")
+            skip.add(vid)
+            newly.append(vid)
+    if newly:
+        log(f"永久跳过（超时/失败 {MAX_FAIL} 次）{len(newly)} 条: {newly}")
+
+
 def loop_once(token):
     refresh()
     fav = load_json(FAV, {})
     idx = load_json(INDEX, {})
-    ids = [k for k, _ in sorted(fav.items(), key=lambda kv: kv[1])]
-    todo = [i for i in ids if not (bt.OUT / f"{i}.txt").exists()]
+    skip = set(load_json(SKIP, []))
+    fails = load_json(FAILS, {})
+    # todo 取索引全集（含未进 fav_order 的历史条目），fav_order 仅用于排序权重
+    order = {k: v for k, v in sorted(fav.items(), key=lambda kv: kv[1])}
+    ids = sorted(set(idx) | set(fav), key=lambda i: order.get(i, 10**9))
+    todo = [
+        i for i in ids
+        if i not in skip and not (bt.OUT / f"{i}.txt").exists()
+    ]
     if todo:
-        log(f"转写 todo={len(todo)}")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
-            list(ex.map(bt.transcribe_one, todo))
+        log(f"转写 todo={len(todo)}（在册 {len(ids)}）")
+        run_transcribe(todo, fails, skip)
 
     sent = set(load_json(SENT, []))
     jobs = []
@@ -113,7 +170,9 @@ def loop_once(token):
                 else:
                     log(f"  {vid} -> {status} (留待下轮)")
     json.dump(sorted(sent), open(SENT, "w"), ensure_ascii=False)
-    log(f"本轮结束，已发送 {len(sent)} 条")
+    json.dump(sorted(skip), open(SKIP, "w"), ensure_ascii=False)
+    json.dump(fails, open(FAILS, "w"), ensure_ascii=False)
+    log(f"本轮结束，已发送 {len(sent)} 条 · 永久跳过 {len(skip)} 条")
 
 
 def main():
