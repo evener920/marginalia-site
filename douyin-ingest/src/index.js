@@ -146,6 +146,58 @@ function cors() {
   };
 }
 
+// 文稿按 backfill_transcripts.py 的同一格式注入，保证幂等一致。
+// 正文做 HTML 转义（与 Python 的 html.escape 对齐：转 & < >）。
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function transcriptSection(text) {
+  const safe = escHtml(text);
+  return (
+    `\n<!-- transcript-block -->\n` +
+    `<details class="transcript">\n` +
+    `  <summary>Transcript · 文字稿</summary>\n` +
+    `  <div class="transcript-text">${safe}</div>\n` +
+    `</details>\n`
+  );
+}
+
+// 把转写文稿追加进某个视频页（幂等：已有 transcript-block 直接跳过）。
+// 使用 GitHub Contents API 的 PUT（带文件 sha）自动建提交，比手工建树简洁。
+// 返回 {status: "ok"|"skipped"|"pending"|"error"}，守护进程据此决定是否重试。
+async function appendTranscript(env, file, text) {
+  const enc = encodeURIComponent(file);
+  const path = `_videos/${enc}`;
+  const getR = await ghFetch(env, `/contents/${path}?ref=${env.BRANCH}`);
+  if (getR.status === 404) return { status: "pending" }; // 视频页还没建好，下轮再试
+  if (!getR.ok) return { status: "error", error: `读文件失败 ${getR.status}` };
+  const data = await getR.json();
+  const existing = Buffer.from(data.content, "base64").toString("utf8");
+  if (existing.includes("transcript-block")) return { status: "skipped" }; // 已有文稿
+  const newContent =
+    existing.replace(/\s*$/, "") + transcriptSection(text);
+  const putR = await ghFetch(env, `/contents/${path}`, "PUT", {
+    message: `content(douyin): 回填 ${file} 文字稿 (via douyin-ingest)`,
+    content: utf8ToBase64(newContent),
+    sha: data.sha,
+    branch: env.BRANCH,
+  });
+  if (!putR.ok) {
+    // 并发冲突或刚好被写入：再读一次确认是否已有文稿
+    const r2 = await ghFetch(env, `/contents/${path}?ref=${env.BRANCH}`);
+    if (r2.ok) {
+      const c2 = Buffer.from((await r2.json()).content, "base64").toString("utf8");
+      if (c2.includes("transcript-block")) return { status: "skipped" };
+    }
+    return { status: "error", error: `写文件失败 ${putR.status}` };
+  }
+  return { status: "ok" };
+}
+
 const CHUNK = 20; // 每批提交条数
 
 // 处理一批（上限 CHUNK 条）：并发建 blob → 建树 → 提交 → 更新 ref，并把索引写进本次树。
@@ -401,6 +453,38 @@ export default {
           status: 500,
           headers: { "Content-Type": "application/json", ...cors() },
         });
+      }
+    }
+
+    if (url.pathname === "/transcript" && request.method === "POST") {
+      // 仅限持有共享 token 的 VPS 守护进程调用，避免被滥用往视频页写垃圾
+      const t = url.searchParams.get("t");
+      if (!t || t !== env.TRANSCRIPT_TOKEN) {
+        return new Response(JSON.stringify({ status: "unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const body = await request.json();
+        const id = String(body.id || "");
+        const file = String(body.file || "");
+        const text = String(body.text || "");
+        if (!file || !text) {
+          return new Response(JSON.stringify({ status: "bad_request" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const res = await appendTranscript(env, file, text);
+        return new Response(JSON.stringify(res), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ status: "error", error: String(err.message || err) }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
       }
     }
 
