@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.9
+// @version      1.10
 // @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
@@ -69,6 +69,7 @@
     var total = TARGET_IDS.length;
     var captured = {};
     var remaining = new Set(TARGET_IDS);
+    var targetsSeen = new Set();   // 缺失清单里、在收藏夹 DOM 中实际出现过的 id
     var rounds = 0, stale = 0, maxStale = 30;
     var done = function () { return total - remaining.size; };
     btn.textContent = '抓取中…'; btn.style.opacity = '0.75';
@@ -111,7 +112,7 @@
     var allSeen = new Set();
     var lastSeen = -1;
 
-    while (remaining.size > 0 && rounds < 1500) {
+    while (rounds < 1500) {
       // 先扫当前位置（首轮 scrollTop=0 含顶部卡片），再步进 —— 避免漏掉顶部与每段衔接处
       var nodes = document.querySelectorAll('a[href*="/video/"], a[href*="/note/"]');
       for (var i = 0; i < nodes.length; i++) {
@@ -120,27 +121,34 @@
         if (!m) continue;
         var id = m[1];
         allSeen.add(id);
-        if (!remaining.has(id)) continue;
-        var url = '';
-        for (var w = 0; w < 3; w++) {
-          url = realCover(a);
-          if (url) break;
-          try { a.scrollIntoView({ block: 'center' }); } catch (e) {}
-          await sleep(350);
+        var isTarget = remaining.has(id);
+        if (isTarget) { targetsSeen.add(id); remaining.delete(id); }
+        if (captured[id]) continue;            // 已抓过则跳过
+        var url = realCover(a);
+        if (!url && isTarget) {                // 仅对缺失项做重试，省时间
+          for (var w = 0; w < 3; w++) {
+            try { a.scrollIntoView({ block: 'center' }); } catch (e) {}
+            await sleep(350);
+            url = realCover(a);
+            if (url) break;
+          }
         }
-        if (url) { captured[id] = url; remaining.delete(id); }
+        if (url) captured[id] = url;
       }
+      // 缺失项已全部命中，且滚动已到底（不再有新视频）则提前结束
+      if (remaining.size === 0 && stale >= maxStale) break;
       stepScroll();
       rounds++;
       var ms = mainScroller();
       var diag = ms ? (' · 滚' + Math.round(ms.scrollTop) + '/' + Math.round(ms.scrollHeight)) : '';
-      status.textContent = '第' + rounds + '轮 · 见' + allSeen.size + '视频 · 抓' + done() + '/' + total + ' · 剩' + remaining.size + diag;
+      status.textContent = '第' + rounds + '轮 · 见' + allSeen.size + '视频 · 抓' + Object.keys(captured).length + '封面 · 缺项命中' + targetsSeen.size + '/' + total + diag;
       if (allSeen.size === lastSeen) stale++; else stale = 0;
       lastSeen = allSeen.size;
       if (stale >= maxStale) break;
       await sleep(550);
     }
 
+    // 全量导出：把所有抓到的封面都写出来（不仅限于缺失清单），由服务端按缺失清单筛选补齐
     var out = Object.keys(captured).map(function (id) { return id + '|' + captured[id]; });
     if (out.length) {
       var blob = new Blob([out.join('\n')], { type: 'text/plain' });
@@ -150,16 +158,18 @@
       setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} if (x.parentNode) x.parentNode.removeChild(x); }, 1000);
     }
     var ms = mainScroller();
-    var diag = ms ? ('\n\n诊断：共滚动 ' + rounds + ' 轮，累计见过 ' + allSeen.size + ' 个视频；主容器 scrollTop=' + Math.round(ms.scrollTop) + ' / scrollHeight=' + Math.round(ms.scrollHeight) + '（若 scrollTop 始终≈0 说明滚动未生效，需换手段）') : '';
-    var msg = '焦点模式完成：\n匹配到 ' + out.length + ' / ' + total + ' 个缺失封面' + (out.length ? '，已导出 covers.txt' : '（本次无导出）');
-    if (remaining.size > 0) {
-      msg += '\n\n仍未匹配 ' + remaining.size + ' 个：很可能已不在收藏夹（或图文/note 未渲染），服务端无法补，可保留占位卡。';
-    } else {
-      msg += '\n\n全部缺失封面已抓到！';
-    }
+    var diag = ms ? ('\n\n诊断：共滚动 ' + rounds + ' 轮，累计见过 ' + allSeen.size + ' 个视频；主容器 scrollTop=' + Math.round(ms.scrollTop) + ' / scrollHeight=' + Math.round(ms.scrollHeight)) : '';
+    var hitTargets = TARGET_IDS.filter(function (id) { return captured[id]; });
+    var inFavNoCover = TARGET_IDS.filter(function (id) { return targetsSeen.has(id) && !captured[id]; });
+    var notInFav = TARGET_IDS.filter(function (id) { return !targetsSeen.has(id); });
+    var msg = '焦点模式完成（全量导出）：\n';
+    msg += '滚到 ' + allSeen.size + ' 个视频，抓到封面 ' + out.length + ' 张，已全部导出 covers.txt。\n';
+    msg += '缺失清单命中：' + hitTargets.length + ' / ' + total + ' 个（服务端将补齐）；\n';
+    msg += '在收藏夹但无封面：' + inFavNoCover.length + ' 个（死链/图文帖，留占位卡）；\n';
+    msg += '未出现在收藏夹：' + notInFav.length + ' 个（可能已取消收藏，服务端将留占位卡）。';
     msg += diag;
     alert(msg);
-    status.textContent = '完成：匹配 ' + out.length + '/' + total;
+    status.textContent = '完成：导出 ' + out.length + ' 张，缺项命中 ' + hitTargets.length + '/' + total;
     btn.dataset.busy = '0'; btn.textContent = '🎯 导出缺失封面'; btn.style.opacity = '1';
   }
 
