@@ -16,7 +16,7 @@
 <body>
   <h1>抖音收藏封面导出 · 书签生成器</h1>
   <p>把下面这个按钮 <strong>拖到浏览器收藏夹栏</strong>（或右键「添加页」），就得到一个一键导出书签：</p>
-  <p><a class="btn" href="javascript:(function(){var o=[];document.querySelectorAll('a[href*=&quot;/video/&quot;]').forEach(function(a){var m=a.href.match(/video\/(\d+)/);if(m){var i=a.querySelector('img');o.push(m[1]+'|'+(i?i.src:''));}});var b=new Blob([o.join('\n')],{type:'text/plain'});var u=URL.createObjectURL(b);var x=document.createElement('a');x.href=u;x.download='covers.txt';x.click();})()">📌 抖音封面导出</a></p>
+  <p><a class="btn" href="javascript:(function(){function realCover(a){var img=a.querySelector('img');if(!img)return '';var c=[];['data-src','data-lazy-src','data-actualsrc','data-original'].forEach(function(x){var v=img.getAttribute(x);if(v)c.push(v);});if(img.getAttribute('srcset')){var s=img.getAttribute('srcset').trim().split(/\s+/);c.push(s[0].split(' ')[0]);}if(img.currentSrc)c.push(img.currentSrc);c.push(img.src);var el=a;while(el){var bi='';try{bi=getComputedStyle(el).backgroundImage;}catch(e){}var mm=bi&&bi.match(/url\(['\"]?(https?:[^\s'\")]+)/);if(mm)c.push(mm[1]);el=el.parentElement;}for(var i=0;i<c.length;i++){var u=(c[i]||'').trim();if(!u)continue;if(u.indexOf('data:')===0)continue;if(/placeholder|gray|1x1|blank/i.test(u))continue;return u.charAt(0)==='/'&&u.charAt(1)==='/'?'https:'+u:u;}return '';}var o=[];document.querySelectorAll('a[href*=&quot;/video/&quot;]').forEach(function(a){var m=a.href.match(/video\/(\d+)/);if(m){var cov=realCover(a);if(cov)o.push(m[1]+'|'+cov);}});var b=new Blob([o.join('\n')],{type:'text/plain'});var u=URL.createObjectURL(b);var x=document.createElement('a');x.href=u;x.download='covers.txt';x.click();})()">📌 抖音封面导出</a></p>
   <div class="note">
     <strong>用法：</strong>
     <ol>
