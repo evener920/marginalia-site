@@ -299,18 +299,28 @@ wide: true
   .tr-progress__bar { margin: .55rem 0 .4rem; height: 6px; border-radius: 3px; background: rgba(31,29,27,.1); overflow: hidden; }
   .tr-progress__bar span { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
   .tr-progress__meta { font-size: .74rem; color: var(--muted); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  .tr-progress__toggle { font-size: .9rem; line-height: 1; padding: .15rem .4rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; transition: color .2s, border-color .2s, transform .25s; }
+  .tr-progress__toggle:hover { color: var(--accent); border-color: var(--accent); }
+  .tr-progress__body { overflow: hidden; transition: max-height .3s ease, opacity .25s ease; max-height: 80px; opacity: 1; }
+  .tr-progress.collapsed .tr-progress__body { max-height: 0; opacity: 0; margin: 0; }
+  .tr-progress.collapsed .tr-progress__toggle { transform: rotate(-90deg); }
   .video-modal__msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2rem; text-align: center; color: #fbf8f1; font-family: var(--sans); font-size: .95rem; line-height: 1.6; }
 </style>
 <div class="tr-progress" id="trProgress" data-total="{{ tr_total }}" data-done="{{ tr_done }}" data-pending="{{ tr_pending }}">
   <div class="tr-progress__head">
-    <span class="tr-progress__label">📝 文字稿自动转写</span>
+    <span style="display:flex; align-items:baseline; gap:.5rem;">
+      <button type="button" id="trToggle" class="tr-progress__toggle" title="折叠/展开" aria-label="折叠或展开进度条" aria-expanded="true">▾</button>
+      <span class="tr-progress__label">📝 文字稿自动转写</span>
+    </span>
     <span class="tr-progress__head-right">
       <span class="tr-progress__count"><b id="trDone">{{ tr_done }}</b> / {{ tr_total }} · 待 <b id="trPending">{{ tr_pending }}</b> 条</span>
       <button type="button" id="trRefresh" class="tr-progress__refresh" title="刷新实时进度" aria-label="刷新进度">↻</button>
     </span>
   </div>
-  <div class="tr-progress__bar"><span id="trBar" style="width:{{ tr_pct }}%"></span></div>
-  <div class="tr-progress__meta" id="trMeta"></div>
+  <div class="tr-progress__body">
+    <div class="tr-progress__bar"><span id="trBar" style="width:{{ tr_pct }}%"></span></div>
+    <div class="tr-progress__meta" id="trMeta"></div>
+  </div>
 </div>
 <script>
 (function () {
@@ -319,8 +329,11 @@ wide: true
   var bar = document.getElementById('trBar');
   var doneEl = document.getElementById('trDone');
   var pendEl = document.getElementById('trPending');
+  var toggleBtn = document.getElementById('trToggle');
+  var KEY = 'trProgressCollapsed';
   var CYCLE = 120; // 守护进程每 120s 一轮
-  // 初始用构建时快照；随后由 /stats 实时校正
+  // 进度以构建时快照为准（直接数视频页真实含文字稿块，准确）；
+  // 不用 /stats 的 transcribed 覆盖 done —— 那是 KV 只增不删的 tr:<id> 集合，会虚高。
   var total = +box.dataset.total || 0;
   var done = +box.dataset.done || 0;
   var pending = +box.dataset.pending || 0;
@@ -345,20 +358,30 @@ wide: true
     fetch(STATS_URL, { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
-        if (!d) return;
-        if (d.total) total = d.total;
-        if (typeof d.transcribed === 'number') {
-          done = d.transcribed;
-          pending = Math.max(0, total - done);
-          render(); tick();
-        }
+        if (!d || !d.total) return;
+        // 仅用 /stats 校正总数；done/pending 维持准确的构建时快照（KV 计数会虚高，不用）
+        total = d.total;
+        pending = Math.max(0, total - done);
+        render(); tick();
       })
       .catch(function () { /* 网络异常时保留构建时快照，不闪烁 */ });
   }
+  // 折叠/展开：状态记在 localStorage，刷新后保持
+  function setCollapsed(c) {
+    box.classList.toggle('collapsed', c);
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', c ? 'false' : 'true');
+    try { localStorage.setItem(KEY, c ? '1' : '0'); } catch (e) {}
+  }
+  var saved = '0';
+  try { saved = localStorage.getItem(KEY) || '0'; } catch (e) {}
+  setCollapsed(saved === '1');
+  if (toggleBtn) toggleBtn.addEventListener('click', function () {
+    setCollapsed(!box.classList.contains('collapsed'));
+  });
   render(); tick();
   setInterval(tick, 1000);
   setInterval(refreshStats, 30000);
-  refreshStats(); // 进页面立即拉一次
+  refreshStats(); // 进页面立即拉一次（仅校正总数）
   var btn = document.getElementById('trRefresh');
   if (btn) btn.addEventListener('click', function () {
     btn.disabled = true;
