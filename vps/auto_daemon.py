@@ -113,9 +113,16 @@ def run_transcribe(todo, fails, skip):
             continue
         try:
             f.result(timeout=0)
-            fails.pop(vid, None)
         except Exception as e:
-            log(f"  转写失败 {vid}: {e}")
+            log(f"  转写异常 {vid}: {e}")
+            fails[vid] = fails.get(vid, 0) + 1
+            continue
+        # bt.transcribe_one 对下载失败/转写失败只写 transcripts/_log.jsonl、不抛异常，
+        # 因此必须以「是否真的产出文稿文件」判定成败，否则失败条目会被误判成功而无限重试。
+        if (bt.OUT / f"{vid}.txt").exists():
+            fails.pop(vid, None)
+        else:
+            log(f"  未产出文稿: {vid}")
             fails[vid] = fails.get(vid, 0) + 1
     try:
         ex.shutdown(wait=False, cancel_futures=True)
