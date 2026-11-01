@@ -193,9 +193,17 @@ def loop_once(token):
     json.dump(sorted(sent), open(SENT, "w"), ensure_ascii=False)
     json.dump(sorted(skip), open(SKIP, "w"), ensure_ascii=False)
     json.dump(fails, open(FAILS, "w"), ensure_ascii=False)
-    log(f"本轮结束，已发送 {len(sent)} 条 · 永久跳过 {len(skip)} 条")
-    # sent 含「成功转写」与「空文本永久跳过」两类；真实已转写 = 总数 − 跳过数
-    return len(sent), len(skip)
+    # 空稿统计：磁盘上所有 0 字节/纯空白 txt。两类来源：
+    #   a) MAX_FAIL 超时/失败写空稿（在 skip 表）
+    #   b) 识别零文本（无音轨/纯音乐，代码上方直接 sent.add，不在 skip 表）
+    # 两类都属「不可自动转写」，上报时统一计入 skipped；
+    # 真实已转写 = len(sent) − 空稿数（sent 含成功转写 + 两类空稿）。
+    empty_n = sum(
+        1 for p in bt.OUT.glob("*.txt")
+        if not p.read_text(encoding="utf-8").strip()
+    )
+    log(f"本轮结束，已发送 {len(sent)} 条 · 永久跳过 {len(skip)} 条 · 空稿 {empty_n} 条")
+    return len(sent), empty_n
 
 
 def main():
@@ -206,11 +214,11 @@ def main():
     last = None  # 仅当 (已转写, 跳过) 变化时才上报，避免每轮空打 Worker
     while True:
         try:
-            sent_n, skip_n = loop_once(token)
-            transcribed_n = sent_n - skip_n
-            key = (transcribed_n, skip_n)
+            sent_n, empty_n = loop_once(token)  # 第二个返回值 = 空稿数 = 不可自动转写数
+            transcribed_n = sent_n - empty_n
+            key = (transcribed_n, empty_n)
             if key != last:
-                report_status(transcribed_n, skip_n, token)
+                report_status(transcribed_n, empty_n, token)
                 last = key
         except Exception as e:
             log(f"loop error: {e}")
