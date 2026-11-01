@@ -343,6 +343,7 @@ wide: true
   var total = +box.dataset.total || 0;
   var done = +box.dataset.done || 0;
   var pending = +box.dataset.pending || 0;
+  var SKIPPED = 0; // 守护进程上报的「永久跳过」数（超长/无音轨/源已删），由 /stats 提供
   var STATS_URL = 'https://transcribe.201573.xyz/douyin-ingest/stats';
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function render() {
@@ -354,6 +355,16 @@ wide: true
     if (pending <= 0) {
       if (bar) bar.style.width = '100%';
       meta.textContent = '✅ 全部 ' + total + ' 条视频已转写完成';
+      return;
+    }
+    // 已有跳过数上报：如实标注不可自动转写的部分，避免看着像卡住
+    if (SKIPPED > 0) {
+      if (SKIPPED >= pending) {
+        meta.textContent = '✅ 自动转写已完成（' + SKIPPED + ' 条因超长 / 源已删不可自动转写，需人工处理）';
+      } else {
+        var rem = Math.max(0, pending - SKIPPED);
+        meta.textContent = '待 ' + pending + ' 条 · 其中 ' + SKIPPED + ' 条已确认不可自动转写（超长 / 源已删），剩 ' + rem + ' 条由守护进程处理';
+      }
       return;
     }
     var now = Math.floor(Date.now() / 1000);
@@ -368,6 +379,7 @@ wide: true
         // 仅用 /stats 校正总数；done/pending 维持准确的构建时快照（KV 计数会虚高，不用）
         total = d.total;
         pending = Math.max(0, total - done);
+        SKIPPED = d.skipped || 0;
         render(); tick();
       })
       .catch(function () { /* 网络异常时保留构建时快照，不闪烁 */ });

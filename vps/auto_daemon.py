@@ -26,6 +26,7 @@ import batch_transcribe as bt
 API_ROOT = "/opt/douyin-api"
 RAW = "https://raw.githubusercontent.com/evener920/marginalia-site/main"
 WORKER = "https://marginalia-douyin-ingest.evener920.workers.dev/transcript"
+WORKER_REPORT = "https://marginalia-douyin-ingest.evener920.workers.dev/skip-report"
 TOKEN_FILE = pathlib.Path(f"{API_ROOT}/transcript_token.txt")
 FAV = pathlib.Path(f"{API_ROOT}/fav_order.json")
 INDEX = pathlib.Path(f"{API_ROOT}/douyin_index.json")
@@ -93,6 +94,19 @@ def send_one(args):
         return vid, resp.get("status", f"http{st}")
     except Exception as e:
         return vid, f"err:{e}"
+
+
+def report_status(transcribed, skipped, token):
+    """把「已转写 / 永久跳过」数上报给 Worker，供站点 /stats 如实标注不可自动转写数。
+
+    仅在数值变化时才上报，避免每轮空打 Worker。
+    """
+    try:
+        url = f"{WORKER_REPORT}?t={token}"
+        st, resp = http_post_json(url, {"transcribed": transcribed, "skipped": skipped})
+        log(f"上报进度：已转写 {transcribed} · 跳过 {skipped} -> http{st}")
+    except Exception as e:
+        log(f"上报进度失败: {e}")
 
 
 def run_transcribe(todo, fails, skip):
@@ -180,6 +194,8 @@ def loop_once(token):
     json.dump(sorted(skip), open(SKIP, "w"), ensure_ascii=False)
     json.dump(fails, open(FAILS, "w"), ensure_ascii=False)
     log(f"本轮结束，已发送 {len(sent)} 条 · 永久跳过 {len(skip)} 条")
+    # sent 含「成功转写」与「空文本永久跳过」两类；真实已转写 = 总数 − 跳过数
+    return len(sent), len(skip)
 
 
 def main():
@@ -187,9 +203,15 @@ def main():
     if not token:
         log("缺少 transcript token，退出")
         raise SystemExit(1)
+    last = None  # 仅当 (已转写, 跳过) 变化时才上报，避免每轮空打 Worker
     while True:
         try:
-            loop_once(token)
+            sent_n, skip_n = loop_once(token)
+            transcribed_n = sent_n - skip_n
+            key = (transcribed_n, skip_n)
+            if key != last:
+                report_status(transcribed_n, skip_n, token)
+                last = key
         except Exception as e:
             log(f"loop error: {e}")
         time.sleep(INTERVAL)

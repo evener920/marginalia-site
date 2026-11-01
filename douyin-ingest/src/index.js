@@ -505,6 +505,30 @@ export default {
       }
     }
 
+    if (url.pathname === "/skip-report" && request.method === "POST") {
+      // 仅限持有共享 token 的 VPS 守护进程调用，上报「永久跳过」数（超长/无音轨/源已删）。
+      const t = url.searchParams.get("t");
+      if (!t || t !== env.TRANSCRIPT_TOKEN) {
+        return new Response(JSON.stringify({ status: "unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const body = await request.json();
+        const skipped = parseInt(body.skipped);
+        if (!Number.isNaN(skipped)) await env.STATS.put("skipped", String(skipped));
+        return new Response(JSON.stringify({ status: "ok", skipped }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ status: "error", error: String(err.message || err) }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     if (url.pathname === "/stats" && request.method === "GET") {
       try {
         const total = parseInt(await env.STATS.get("total")) || 0;
@@ -512,8 +536,11 @@ export default {
         // POST /transcript 返回 skipped 会自动 put tr:<id>，集合逐步补全）。
         const listed = await env.STATS.list({ prefix: "tr:" });
         const transcribed = listed.keys.length;
+        // skipped = 守护进程经 MAX_FAIL 后永久跳过的视频数（超长/无音轨/源已删），
+        // 由 /skip-report 上报，用于前端如实标注「不可自动转写」而非显示卡住。
+        const skipped = parseInt(await env.STATS.get("skipped")) || 0;
         return new Response(
-          JSON.stringify({ total, transcribed, ts: Date.now() }),
+          JSON.stringify({ total, transcribed, skipped, ts: Date.now() }),
           { headers: { "Content-Type": "application/json", ...cors() } }
         );
       } catch (err) {
