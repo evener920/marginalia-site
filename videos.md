@@ -372,7 +372,9 @@ wide: true
     meta.textContent = '待 ' + pending + ' 条 · 守护进程每 2 分钟自动轮询一轮（新视频通常 1–2 轮内出稿）· 距下一轮 ' + pad(Math.floor(secs / 60)) + ':' + pad(secs % 60);
   }
   function refreshStats() {
-    fetch(STATS_URL, { cache: 'no-store' })
+    // 加缓存破坏参数：nginx/Cloudflare 会缓存 GET /stats，no-store 只挡浏览器、挡不住
+    // 服务端缓存，不加则页面永远拿到旧响应（缺 skipped 字段、ts 不更新）。
+    fetch(STATS_URL + '?_=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d || !d.total) return;
