@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.5
+// @version      1.6
 // @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
@@ -123,8 +123,14 @@
   // 仅保留「焦点模式」一个入口：自动滚动 + 边滚边抓缺失封面 + 导出。
   // （旧版的「导出封面」「📜 滚动并导出」两个按钮已合并进此模式，避免按钮过多。）
 
+  var churnIv = null, churnObs = null;
+  function stopChurn() {
+    if (churnIv) { clearInterval(churnIv); churnIv = null; }
+    if (churnObs) { try { churnObs.disconnect(); } catch (e) {} churnObs = null; }
+  }
+
   function injectButton() {
-    if (document.getElementById('dyCoverBtn')) return;
+    if (document.getElementById('dyCoverFocus')) { stopChurn(); return; }
     if (!document.body) return;
     var status = document.getElementById('dyCoverStatus');
     if (!status) {
@@ -166,9 +172,9 @@
 
   injectButton();
   var t = 0;
-  var iv = setInterval(function () { injectButton(); if (++t > 60) clearInterval(iv); }, 500);
+  churnIv = setInterval(function () { injectButton(); if (++t > 60) stopChurn(); }, 500);
   try {
-    var obs = new MutationObserver(function () { injectButton(); });
-    obs.observe(document.documentElement, { childList: true, subtree: true });
+    churnObs = new MutationObserver(function () { injectButton(); });
+    churnObs.observe(document.documentElement, { childList: true, subtree: true });
   } catch (e) {}
 })();
