@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.7
+// @version      1.8
 // @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
@@ -69,60 +69,63 @@
     var total = TARGET_IDS.length;
     var captured = {};
     var remaining = new Set(TARGET_IDS);
-    var rounds = 0, stale = 0, maxStale = 14;
+    var rounds = 0, stale = 0, maxStale = 30;
     var done = function () { return total - remaining.size; };
     btn.textContent = '抓取中…'; btn.style.opacity = '0.75';
     status.textContent = '开始：目标 ' + total + ' 个，已抓 0';
 
-    // 找真正的滚动容器（scrollHeight 最大的可滚动元素），应对抖音 SPA 内部滚动 + 虚拟列表
-    function findSc() {
-      var best = null, bestH = 0;
+    // 收集所有「可滚动元素」。抖音收藏页是 SPA，真正滚动容器在内部某 div，
+    // 不依赖单一猜测 —— 每轮把所有候选容器都增量滚动一遍，总会命中真正的那个。
+    function scrollables() {
+      var res = [];
       var all = document.getElementsByTagName('*');
       for (var i = 0; i < all.length; i++) {
         var el = all[i];
-        try { if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 8 && el.scrollHeight > bestH) { bestH = el.scrollHeight; best = el; } } catch (e) {}
+        try { if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 8) res.push(el); } catch (e) {}
       }
-      return best;
+      return res;
     }
-    // 增量滚动：每轮只下挪一屏的 ~60%，让虚拟列表逐段渲染、每段都被扫到
-    // （旧版 scrollAll 每轮直接跳到底部，跳过后中间卡片被虚拟化卸载、永久扫不到，故只命中末屏少数）
-    function step(sc) {
-      if (sc) { try { sc.scrollTop += Math.max(280, Math.floor(sc.clientHeight * 0.6)); } catch (e) {} }
+    function stepScroll() {
+      scrollables().forEach(function (el) {
+        try { el.scrollTop += Math.max(300, Math.floor(el.clientHeight * 0.6)); } catch (e) {}
+      });
       try { window.scrollBy(0, 500); } catch (e) {}
     }
-    function atBottom(sc) {
-      if (sc) { try { if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8) return true; } catch (e) {} }
-      try { var d = document.scrollingElement || document.documentElement; return d.scrollTop + d.clientHeight >= d.scrollHeight - 8; } catch (e) { return false; }
-    }
-
-    var sc = findSc();
-    if (sc) { try { sc.scrollTop = 0; } catch (e) {} }
+    // 先归零，从列表顶部开始
+    scrollables().forEach(function (el) { try { el.scrollTop = 0; } catch (e) {} });
     try { window.scrollTo(0, 0); } catch (e) {}
-    while (remaining.size > 0 && rounds < 2500) {
-      if (!sc) sc = findSc();
-      // 先扫当前位置（首轮 scrollTop=0，含列表顶部卡片；之后每轮扫步进前位置），再步进 —— 避免漏掉顶部与每段衔接处
+
+    // 记录「历史上见过的视频 id」，用于判断是否已经滚到列表底部：
+    // 虚拟列表每步会加载新底部卡片、卸载顶部卡片，故 allSeen 持续增长；见底后不再增长。
+    var allSeen = new Set();
+    var lastSeen = -1;
+
+    while (remaining.size > 0 && rounds < 1500) {
+      // 先扫当前位置（首轮 scrollTop=0 含顶部卡片），再步进 —— 避免漏掉顶部与每段衔接处
       var nodes = document.querySelectorAll('a[href*="/video/"], a[href*="/note/"]');
       for (var i = 0; i < nodes.length; i++) {
         var a = nodes[i];
         var m = a.href.match(/video\/(\d+)/) || a.href.match(/note\/(\d+)/);
         if (!m) continue;
         var id = m[1];
+        allSeen.add(id);
         if (!remaining.has(id)) continue;
         var url = '';
         for (var w = 0; w < 3; w++) {
           url = realCover(a);
           if (url) break;
           try { a.scrollIntoView({ block: 'center' }); } catch (e) {}
-          await sleep(400);
+          await sleep(350);
         }
         if (url) { captured[id] = url; remaining.delete(id); }
       }
-      step(sc);
+      stepScroll();
       rounds++;
-      status.textContent = '滚动第' + rounds + '轮 · 已抓 ' + done() + '/' + total + ' · 剩余 ' + remaining.size;
-      if (atBottom(sc)) stale++; else stale = 0;
+      status.textContent = '滚动第' + rounds + '轮 · 累计见 ' + allSeen.size + ' 个视频 · 已抓 ' + done() + '/' + total + ' · 剩余 ' + remaining.size;
+      if (allSeen.size === lastSeen) stale++; else stale = 0;
+      lastSeen = allSeen.size;
       if (stale >= maxStale) break;
-      await sleep(600);
+      await sleep(550);
     }
 
     var out = Object.keys(captured).map(function (id) { return id + '|' + captured[id]; });
