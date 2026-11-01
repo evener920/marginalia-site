@@ -360,7 +360,7 @@ wide: true
     // 已有跳过数上报：如实标注不可自动转写的部分，避免看着像卡住
     if (SKIPPED > 0) {
       if (SKIPPED >= pending) {
-        meta.textContent = '✅ 已尽力转写 ' + done + ' / ' + total + ' · 余 ' + SKIPPED + ' 条超长或源已删，留待人工';
+        meta.textContent = '✅ 已完成 ' + done + ' / ' + total + ' · 余 ' + SKIPPED + ' 条无解';
       } else {
         var rem = Math.max(0, pending - SKIPPED);
         meta.textContent = '待 ' + pending + ' 条 · 其中 ' + SKIPPED + ' 条已确认不可自动转写（超长 / 源已删），剩 ' + rem + ' 条由守护进程处理';
