@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.8
+// @version      1.9
 // @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
@@ -74,8 +74,6 @@
     btn.textContent = '抓取中…'; btn.style.opacity = '0.75';
     status.textContent = '开始：目标 ' + total + ' 个，已抓 0';
 
-    // 收集所有「可滚动元素」。抖音收藏页是 SPA，真正滚动容器在内部某 div，
-    // 不依赖单一猜测 —— 每轮把所有候选容器都增量滚动一遍，总会命中真正的那个。
     function scrollables() {
       var res = [];
       var all = document.getElementsByTagName('*');
@@ -85,13 +83,26 @@
       }
       return res;
     }
+    // 主滚动容器（scrollHeight 最大的可滚动元素），仅用于诊断显示
+    function mainScroller() {
+      var best = null, bestH = 0;
+      scrollables().forEach(function (el) { try { if (el.scrollHeight > bestH) { bestH = el.scrollHeight; best = el; } } catch (e) {} });
+      return best;
+    }
+    // 多种滚动手段并行，覆盖「原生滚动容器」与「JS 监听 wheel 的 transform 滚动」两类页面：
+    // ① 把最后一张视频卡 scrollIntoView（原生信号）；② 派发真实 wheel 事件（命中监听 wheel 的容器）；③ 直接设 scrollTop 兜底。
+    function fireWheel(t, dy) {
+      try { t.dispatchEvent(new WheelEvent('wheel', { deltaY: dy, deltaMode: 0, bubbles: true, cancelable: true })); } catch (e) {}
+    }
     function stepScroll() {
-      scrollables().forEach(function (el) {
-        try { el.scrollTop += Math.max(300, Math.floor(el.clientHeight * 0.6)); } catch (e) {}
-      });
+      var vids = document.querySelectorAll('a[href*="/video/"], a[href*="/note/"]');
+      if (vids.length) { try { vids[vids.length - 1].scrollIntoView({ block: 'end' }); } catch (e) {} }
+      var dy = 900;
+      [window, document, document.documentElement, document.body].forEach(function (t) { fireWheel(t, dy); });
+      scrollables().forEach(function (el) { fireWheel(el, dy); });
+      scrollables().forEach(function (el) { try { el.scrollTop += Math.max(300, Math.floor(el.clientHeight * 0.6)); } catch (e) {} });
       try { window.scrollBy(0, 500); } catch (e) {}
     }
-    // 先归零，从列表顶部开始
     scrollables().forEach(function (el) { try { el.scrollTop = 0; } catch (e) {} });
     try { window.scrollTo(0, 0); } catch (e) {}
 
@@ -121,7 +132,9 @@
       }
       stepScroll();
       rounds++;
-      status.textContent = '滚动第' + rounds + '轮 · 累计见 ' + allSeen.size + ' 个视频 · 已抓 ' + done() + '/' + total + ' · 剩余 ' + remaining.size;
+      var ms = mainScroller();
+      var diag = ms ? (' · 滚' + Math.round(ms.scrollTop) + '/' + Math.round(ms.scrollHeight)) : '';
+      status.textContent = '第' + rounds + '轮 · 见' + allSeen.size + '视频 · 抓' + done() + '/' + total + ' · 剩' + remaining.size + diag;
       if (allSeen.size === lastSeen) stale++; else stale = 0;
       lastSeen = allSeen.size;
       if (stale >= maxStale) break;
@@ -136,12 +149,15 @@
       document.body.appendChild(x); x.click();
       setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} if (x.parentNode) x.parentNode.removeChild(x); }, 1000);
     }
+    var ms = mainScroller();
+    var diag = ms ? ('\n\n诊断：共滚动 ' + rounds + ' 轮，累计见过 ' + allSeen.size + ' 个视频；主容器 scrollTop=' + Math.round(ms.scrollTop) + ' / scrollHeight=' + Math.round(ms.scrollHeight) + '（若 scrollTop 始终≈0 说明滚动未生效，需换手段）') : '';
     var msg = '焦点模式完成：\n匹配到 ' + out.length + ' / ' + total + ' 个缺失封面' + (out.length ? '，已导出 covers.txt' : '（本次无导出）');
     if (remaining.size > 0) {
       msg += '\n\n仍未匹配 ' + remaining.size + ' 个：很可能已不在收藏夹（或图文/note 未渲染），服务端无法补，可保留占位卡。';
     } else {
       msg += '\n\n全部缺失封面已抓到！';
     }
+    msg += diag;
     alert(msg);
     status.textContent = '完成：匹配 ' + out.length + '/' + total;
     btn.dataset.busy = '0'; btn.textContent = '🎯 导出缺失封面'; btn.style.opacity = '1';
