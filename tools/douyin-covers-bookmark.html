@@ -2,50 +2,67 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>抖音封面导出书签 · 拖我到收藏夹</title>
+<title>抖音封面导出 · 书签 / 用户脚本生成器</title>
 <style>
-  body { font: 16px/1.7 -apple-system,"PingFang SC",sans-serif; max-width:680px; margin:40px auto; padding:0 20px; color:#2b2b2b; }
+  body { font: 16px/1.7 -apple-system,"PingFang SC",sans-serif; max-width:780px; margin:40px auto; padding:0 20px; color:#2b2b2b; }
   h1 { font-size:22px; }
   .btn { display:inline-block; padding:12px 22px; background:#7a2e2e; color:#fff; border-radius:10px; font-size:18px; cursor:grab; text-decoration:none; user-select:none; border:0; }
   .btn:active { cursor:grabbing; }
   ol { padding-left:20px; }
   code { background:#f3efe7; padding:2px 6px; border-radius:5px; }
-  .note { background:#faf6ef; border-left:4px solid #c9a86a; padding:10px 14px; border-radius:6px; }
-  .warn { background:#fff4f0; border-left:4px solid #c96a6a; padding:10px 14px; border-radius:6px; }
+  .note { background:#faf6ef; border-left:4px solid #c9a86a; padding:10px 14px; border-radius:6px; margin:12px 0; }
+  .warn { background:#fff4f0; border-left:4px solid #c96a6a; padding:10px 14px; border-radius:6px; margin:12px 0; }
   .hint { color:#888; font-size:13px; }
+  h2 { font-size:18px; margin-top:28px; }
 </style>
 </head>
 <body>
-  <h1>抖音收藏封面导出 · 书签生成器</h1>
-  <p>把下面这个按钮 <strong>拖到浏览器收藏夹栏</strong>（或右键「添加网页」），就得到一个一键导出书签：</p>
+  <h1>抖音收藏封面导出 · 生成器</h1>
+  <p>把抖音收藏页所有视频的 <code>视频ID|封面URL</code> 导出成 <code>covers.txt</code>，发给我即可一次性补全 marginalia 缺失的 102 个封面。</p>
+
+  <div class="note" style="border-left-color:#7a2e2e">
+    <strong>💡 推荐方案：用户脚本按钮版（彻底避免「点击没反应」）</strong>
+    <p>Chrome / Edge 从网页安装 <code>javascript:</code> 书签时会静默剥掉协议前缀，导致点击毫无反应——你之前就卡在这。改用浏览器扩展 <strong>Tampermonkey / Violentmonkey</strong> 安装下面的用户脚本，它会在抖音页面右下角常驻一个「导出封面」按钮，点一下就导出，<strong>永久有效、不怕被剥</strong>。</p>
+    <ol>
+      <li>Chrome 网上应用店搜 <strong>Tampermonkey</strong> 安装（已装则跳过）。</li>
+      <li>点下面「📥 下载用户脚本」用 Tampermonkey 打开即自动提示安装；或点「📋 复制用户脚本」后在 Tampermonkey「新建脚本」里粘贴保存。</li>
+      <li>打开抖音收藏页（<code>douyin.com/user/self?showTab=favorite_collection</code>），<strong>滚动到底</strong>让卡片加载完，点右下角「导出封面」按钮 → 下载 <code>covers.txt</code>。</li>
+      <li>把 <code>covers.txt</code> 发给我即可。</li>
+    </ol>
+    <p>
+      <a class="btn" id="dlUser" href="douyin-covers.user.js" download style="background:#7a2e2e">📥 下载用户脚本</a>
+      <button id="copyUser" class="btn" style="background:#7a2e2e">📋 复制用户脚本</button>
+    </p>
+  </div>
+
+  <h2>备选：书签版（Firefox / Safari 可直接拖拽；Chrome 需复制粘贴）</h2>
+  <p>把下面按钮 <strong>拖到收藏夹栏</strong>，或点「📋 复制书签代码」后手动添加：</p>
   <p>
     <a class="btn" id="bm" href="javascript:(function(){function realCover(a){var img=a.querySelector('img');if(!img)return '';var c=[];['data-src','data-lazy-src','data-actualsrc','data-original'].forEach(function(x){var v=img.getAttribute(x);if(v)c.push(v);});if(img.getAttribute('srcset')){var s=img.getAttribute('srcset').trim().split(/\s+/);c.push(s[0].split(' ')[0]);}if(img.currentSrc)c.push(img.currentSrc);c.push(img.src);var el=a;while(el){var bi='';try{bi=getComputedStyle(el).backgroundImage;}catch(e){}var mm=bi&&bi.match(/url\(['\"]?(https?:[^\s'\")]+)/);if(mm)c.push(mm[1]);el=el.parentElement;}for(var i=0;i<c.length;i++){var u=(c[i]||'').trim();if(!u)continue;if(u.indexOf('data:')===0)continue;if(/placeholder|gray|1x1|blank/i.test(u))continue;return u.charAt(0)==='/'&&u.charAt(1)==='/'?'https:'+u:u;}return '';}var o=[];document.querySelectorAll('a[href*=&quot;/video/&quot;]').forEach(function(a){var m=a.href.match(/video\/(\d+)/);if(m){var cov=realCover(a);if(cov)o.push(m[1]+'|'+cov);}});var b=new Blob([o.join('\n')],{type:'text/plain'});var u=URL.createObjectURL(b);var x=document.createElement('a');x.href=u;x.download='covers.txt';x.click();alert('已导出 '+o.length+' 条封面到 covers.txt（若为 0，说明页面未加载出视频卡片，请先滚动到底再点一次）');})()">📌 抖音封面导出</a>
     <button id="copy" class="btn" style="background:#7a2e2e">📋 复制书签代码</button>
-    <span class="hint">推荐用「复制」+ 手动添加书签（见下方说明）；拖拽在 Chrome 会被剥掉 javascript: 协议而失效。</span>
+    <span class="hint">Chrome 拖拽会剥掉 javascript: 协议；请点「复制书签代码」→ 收藏夹栏右键 → 添加网页 → 网址栏粘贴。</span>
   </p>
-
   <p><label for="code">书签代码（复制后手动添加书签用）</label>
   <textarea id="code" rows="4" readonly style="width:100%;font:12px/1.5 monospace;padding:9px 11px;border:1px solid #c9a86a;border-radius:8px;box-sizing:border-box;word-break:break-all"></textarea></p>
 
   <div class="warn">
-    <strong>⚠ 安装方式（很重要）：</strong>Chrome / 新版 Edge 从网页<strong>拖拽</strong> <code>javascript:</code> 书签时会<strong>静默剥掉协议前缀</strong>，书签点下去完全没反应——你刚才大概率卡在这。正确做法：点「📋 复制书签代码」→ 在收藏夹栏<strong>右键 → 添加网页</strong> → 名称随意、<strong>网址栏粘贴</strong>刚才复制的内容。Firefox / Safari 可直接拖拽。
+    <strong>⚠ 安装方式（Chrome / Edge 必看）：</strong>从网页<strong>拖拽</strong> <code>javascript:</code> 书签时会<strong>静默剥掉协议前缀</strong>，书签点下去完全没反应——你刚才点没反应就是这原因。正确做法：点「📋 复制书签代码」→ 收藏夹栏<strong>右键 → 添加网页</strong> → 名称随意、<strong>网址栏粘贴</strong>。Firefox / Safari 可直接拖拽。
   </div>
 
   <div class="note">
-    <strong>用法：</strong>
+    <strong>用法（书签版）：</strong>
     <ol>
-      <li>先打开抖音收藏夹页面 <code>douyin.com/user/self?showTab=favorite_collection</code>。</li>
-      <li>把页面<strong>滚动到底部</strong>，让所有视频卡片都加载出来（否则只导出视口内的）。</li>
-      <li>点击收藏夹栏里的「抖音封面导出」书签。</li>
-      <li>浏览器会下载一个 <code>covers.txt</code>，并弹出「已导出 N 条」提示；内容是每行 <code>视频ID|封面URL</code>。</li>
+      <li>打开抖音收藏夹页面 <code>douyin.com/user/self?showTab=favorite_collection</code>。</li>
+      <li><strong>滚动到底部</strong>，让所有视频卡片都加载出来。</li>
+      <li>点击收藏夹栏里的「抖音封面导出」书签 → 下载 <code>covers.txt</code> 并弹出「已导出 N 条」。</li>
       <li>把 <code>covers.txt</code> 发给我，我跑 <code>fetch_covers.py</code> 一次性补全封面。</li>
     </ol>
   </div>
 
-  <p style="color:#888;font-size:13px">注：抖音图片地址多为临时 CDN，脚本会一并下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。若导出 0 条，通常是页面还没加载出视频卡片，先滚动到底再点一次即可。</p>
+  <p class="hint">注：封面地址多为临时 CDN，脚本会一并下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。若导出 0 条，通常是页面还没加载出视频卡片，先滚动到底再点一次即可。</p>
 
 <script>
-// 书签代码即上方按钮的 href（浏览器已自动解码），直接用于复制，避免手敲转义出错
+// 书签代码即上方按钮的 href（浏览器已自动解码），直接用于复制
 var bm = document.getElementById('bm');
 document.getElementById('code').value = bm.getAttribute('href');
 
@@ -58,19 +75,26 @@ copyBtn.addEventListener('click', function () {
     setTimeout(function () { copyBtn.textContent = o; }, 2600);
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt).then(done).catch(function () {
-      var ta = document.getElementById('code'); ta.select(); document.execCommand('copy'); done();
-    });
-  } else {
-    var ta = document.getElementById('code'); ta.select(); document.execCommand('copy'); done();
-  }
+    navigator.clipboard.writeText(txt).then(done).catch(function () { var ta = document.getElementById('code'); ta.select(); document.execCommand('copy'); done(); });
+  } else { var ta = document.getElementById('code'); ta.select(); document.execCommand('copy'); done(); }
 });
-
-// 在生成页上点 📌 按钮不要直接执行（会误报 0 条），引导用复制方式安装
 bm.addEventListener('click', function (e) {
   e.preventDefault();
-  alert('不要在此页点击这个按钮。\n请点「📋 复制书签代码」，然后到抖音收藏页点击你添加的书签。');
+  alert('不要在此页点击这个按钮。\n请复制代码后，到抖音收藏页点击你添加的书签。');
 });
+
+// 复制用户脚本内容（供 Tampermonkey 安装，避免 javascript: 书签被 Chrome 剥协议）
+var copyUserBtn = document.getElementById('copyUser');
+if (copyUserBtn) {
+  copyUserBtn.addEventListener('click', function () {
+    fetch('douyin-covers.user.js').then(function (r) { return r.text(); }).then(function (txt) {
+      function flash() { var o = copyUserBtn.textContent; copyUserBtn.textContent = '✓ 已复制，去 Tampermonkey 新建脚本粘贴'; setTimeout(function () { copyUserBtn.textContent = o; }, 2800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(flash).catch(function () { window.prompt('复制失败，请手动全选复制：', txt); });
+      } else { window.prompt('复制失败，请手动全选复制：', txt); }
+    }).catch(function () { alert('读取脚本失败，请直接打开 tools/douyin-covers.user.js 复制内容。'); });
+  });
+}
 </script>
 </body>
 </html>
