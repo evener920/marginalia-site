@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.6
+// @version      1.7
 // @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
@@ -69,14 +69,38 @@
     var total = TARGET_IDS.length;
     var captured = {};
     var remaining = new Set(TARGET_IDS);
-    var rounds = 0, lastH = -1, stale = 0, maxStale = 16;
+    var rounds = 0, stale = 0, maxStale = 14;
     var done = function () { return total - remaining.size; };
     btn.textContent = '抓取中…'; btn.style.opacity = '0.75';
     status.textContent = '开始：目标 ' + total + ' 个，已抓 0';
 
-    while (remaining.size > 0 && rounds < 900) {
-      scrollAll();
-      rounds++;
+    // 找真正的滚动容器（scrollHeight 最大的可滚动元素），应对抖音 SPA 内部滚动 + 虚拟列表
+    function findSc() {
+      var best = null, bestH = 0;
+      var all = document.getElementsByTagName('*');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        try { if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 8 && el.scrollHeight > bestH) { bestH = el.scrollHeight; best = el; } } catch (e) {}
+      }
+      return best;
+    }
+    // 增量滚动：每轮只下挪一屏的 ~60%，让虚拟列表逐段渲染、每段都被扫到
+    // （旧版 scrollAll 每轮直接跳到底部，跳过后中间卡片被虚拟化卸载、永久扫不到，故只命中末屏少数）
+    function step(sc) {
+      if (sc) { try { sc.scrollTop += Math.max(280, Math.floor(sc.clientHeight * 0.6)); } catch (e) {} }
+      try { window.scrollBy(0, 500); } catch (e) {}
+    }
+    function atBottom(sc) {
+      if (sc) { try { if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8) return true; } catch (e) {} }
+      try { var d = document.scrollingElement || document.documentElement; return d.scrollTop + d.clientHeight >= d.scrollHeight - 8; } catch (e) { return false; }
+    }
+
+    var sc = findSc();
+    if (sc) { try { sc.scrollTop = 0; } catch (e) {} }
+    try { window.scrollTo(0, 0); } catch (e) {}
+    while (remaining.size > 0 && rounds < 2500) {
+      if (!sc) sc = findSc();
+      // 先扫当前位置（首轮 scrollTop=0，含列表顶部卡片；之后每轮扫步进前位置），再步进 —— 避免漏掉顶部与每段衔接处
       var nodes = document.querySelectorAll('a[href*="/video/"], a[href*="/note/"]');
       for (var i = 0; i < nodes.length; i++) {
         var a = nodes[i];
@@ -85,20 +109,20 @@
         var id = m[1];
         if (!remaining.has(id)) continue;
         var url = '';
-        for (var w = 0; w < 4; w++) {
+        for (var w = 0; w < 3; w++) {
           url = realCover(a);
           if (url) break;
-          a.scrollIntoView({ block: 'center' });
-          await sleep(500);
+          try { a.scrollIntoView({ block: 'center' }); } catch (e) {}
+          await sleep(400);
         }
         if (url) { captured[id] = url; remaining.delete(id); }
       }
+      step(sc);
+      rounds++;
       status.textContent = '滚动第' + rounds + '轮 · 已抓 ' + done() + '/' + total + ' · 剩余 ' + remaining.size;
-      var h = (document.scrollingElement || document.documentElement).scrollHeight;
-      if (h === lastH) stale++; else stale = 0;
-      lastH = h;
+      if (atBottom(sc)) stale++; else stale = 0;
       if (stale >= maxStale) break;
-      await sleep(1100);
+      await sleep(600);
     }
 
     var out = Object.keys(captured).map(function (id) { return id + '|' + captured[id]; });
