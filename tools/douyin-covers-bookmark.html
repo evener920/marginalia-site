@@ -26,7 +26,8 @@
     <ol>
       <li>Chrome 网上应用店搜 <strong>Tampermonkey</strong> 安装（已装则跳过）。</li>
       <li>点下面「📥 下载用户脚本」用 Tampermonkey 打开即自动提示安装；或点「📋 复制用户脚本」后在 Tampermonkey「新建脚本」里粘贴保存。</li>
-      <li>打开抖音收藏页（<code>douyin.com/user/self?showTab=favorite_collection</code>），<strong>滚动到底</strong>让卡片加载完，点右下角「导出封面」按钮 → 下载 <code>covers.txt</code>。</li>
+      <li>打开抖音收藏页（<code>douyin.com/user/self?showTab=favorite_collection</code>），右下角会出现两个按钮：<strong>「📜 滚动并导出」</strong>（推荐，自动滚到底加载全部卡片再导出）和「导出封面」（仅导出当前已加载的）。</li>
+      <li>直接点 <strong>「📜 滚动并导出」</strong> 即可，它会自动滚动触发抖音加载全部卡片，停下后自动下载 <code>covers.txt</code>，无需手动滚。</li>
       <li>把 <code>covers.txt</code> 发给我即可。</li>
     </ol>
     <p>
@@ -59,7 +60,7 @@
     </ol>
   </div>
 
-  <p class="hint">注：封面地址多为临时 CDN，脚本会一并下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。若导出 0 条，通常是页面还没加载出视频卡片，先滚动到底再点一次即可。</p>
+  <p class="hint">注：封面地址多为临时 CDN，脚本会一并下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。若收藏夹视频较多，请务必点 <strong>「📜 滚动并导出」</strong> 按钮（自动滚到底），否则只导出已加载的部分卡片、会漏抓。</p>
 
 <script>
 // 书签代码即上方按钮的 href（浏览器已自动解码），直接用于复制
