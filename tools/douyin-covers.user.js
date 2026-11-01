@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         抖音收藏封面导出 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.4
-// @description  在抖音收藏页注入浮动按钮：①「导出封面」导出当前已加载卡片；②「📜 滚动并导出」自动滚动加载全部卡片再导出；③「🎯 导出缺失封面」焦点模式——边滚动边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」。纯本地 DOM，不受抖音 CSP 影响。
+// @version      1.5
+// @description  在抖音收藏页注入【单个】浮动按钮「🎯 导出缺失封面」：自动滚动加载全部收藏卡片，边滚边抓取 marginalia 仍缺封面的视频（id 内嵌），实时显示「已抓 X/N」并导出 covers.txt。旧版三个封面按钮已合并为此一个。纯本地 DOM，不受抖音 CSP 影响。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
 // @grant        none
@@ -58,21 +58,7 @@
     }
   }
 
-  function collectLines() {
-    var qa = function (s) { return [].slice.call(document.querySelectorAll(s)); };
-    var lines = [], seen = {};
-    qa('a[href*="/video/"]').forEach(function (a) {
-      var m = a.href.match(/video\/(\d+)/); if (!m) return;
-      var id = m[1]; if (seen[id]) return; seen[id] = 1;
-      var cov = realCover(a); if (cov) lines.push(id + '|' + cov);
-    });
-    qa('a[href*="/note/"]').forEach(function (a) {
-      var m = a.href.match(/note\/(\d+)/); if (!m) return;
-      var id = m[1]; if (seen[id]) return; seen[id] = 1;
-      var cov = realCover(a); if (cov) lines.push(id + '|' + cov);
-    });
-    return lines;
-  }
+  // （旧版「导出全部已加载卡片」用的 collectLines 已随多余按钮移除；封面抓取现全部在 runFocus 内完成。）
 
   // 焦点模式 v1.4：边滚动边抓取。
   // 抖音收藏页是懒加载 + 可能虚拟列表，不能「先滚完再扫全部」（滚完后 DOM 只剩视口附近卡片）。
@@ -134,48 +120,8 @@
     btn.dataset.busy = '0'; btn.textContent = '🎯 导出缺失封面'; btn.style.opacity = '1';
   }
 
-  function runExport(btn) {
-    if (btn.dataset.busy === '1') return;
-    btn.dataset.busy = '1';
-    btn.textContent = '导出中 ⏳'; btn.style.opacity = '0.75';
-    var lines = collectLines();
-    var txt = lines.join('\n');
-    var blob = new Blob([txt], { type: 'text/plain' });
-    var u = URL.createObjectURL(blob);
-    var x = document.createElement('a'); x.href = u; x.download = 'covers.txt';
-    document.body.appendChild(x); x.click();
-    setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} if (x.parentNode) x.parentNode.removeChild(x); }, 1000);
-    alert('已导出 ' + lines.length + ' 条封面到 covers.txt');
-    btn.dataset.busy = '0'; btn.textContent = '导出封面'; btn.style.opacity = '1';
-  }
-
-  async function runAuto(btn, status) {
-    if (btn.dataset.busy === '1') return;
-    btn.dataset.busy = '1';
-    btn.textContent = '滚动加载中…(0)'; btn.style.opacity = '0.75';
-    var n = 0, lastH = -1, stale = 0, rounds = 0;
-    while (stale < 14 && rounds < 600) {
-      scrollAll();
-      rounds++;
-      n = document.querySelectorAll('a[href*="/video/"], a[href*="/note/"]').length;
-      btn.textContent = '滚动加载中…(' + rounds + ', ' + n + '卡)';
-      if (status) status.textContent = '自动滚动第' + rounds + '轮，已加载 ' + n + ' 张卡片';
-      var h = (document.scrollingElement || document.documentElement).scrollHeight;
-      if (h === lastH) stale++; else stale = 0;
-      lastH = h;
-      await sleep(1100);
-    }
-    btn.textContent = '导出中 ⏳';
-    var lines = collectLines();
-    var txt = lines.join('\n');
-    var blob = new Blob([txt], { type: 'text/plain' });
-    var u = URL.createObjectURL(blob);
-    var x = document.createElement('a'); x.href = u; x.download = 'covers.txt';
-    document.body.appendChild(x); x.click();
-    setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} if (x.parentNode) x.parentNode.removeChild(x); }, 1000);
-    alert('自动滚动完成，已导出 ' + lines.length + ' 条封面到 covers.txt');
-    btn.dataset.busy = '0'; btn.textContent = '📜 滚动并导出'; btn.style.opacity = '1';
-  }
+  // 仅保留「焦点模式」一个入口：自动滚动 + 边滚边抓缺失封面 + 导出。
+  // （旧版的「导出封面」「📜 滚动并导出」两个按钮已合并进此模式，避免按钮过多。）
 
   function injectButton() {
     if (document.getElementById('dyCoverBtn')) return;
@@ -213,11 +159,9 @@
       return b;
     }
 
-    mkBtn('dyCoverBtn', '导出封面', 210, runExport);
-    mkBtn('dyCoverAuto', '📜 滚动并导出', 154, runAuto);
     mkBtn('dyCoverFocus', '🎯 导出缺失封面', 98, function (b) { runFocus(b, status); });
 
-    status.textContent = '缺失封面目标：' + TARGET_IDS.length + ' 个';
+    status.textContent = '缺失封面目标：' + TARGET_IDS.length + ' 个 · 点按钮开始';
   }
 
   injectButton();
