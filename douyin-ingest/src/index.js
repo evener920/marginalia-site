@@ -122,13 +122,22 @@ async function createBlob(env, contentBase64) {
 // 注意：抖音封面带防盗链/签名，Worker 服务端 fetch 拿不到真图（常返回极小占位响应）。
 // 因此不再在服务端拉图，而是把书签抓到的「抖音原始封面 URL」直接写进视频页，
 // 由用户浏览器直连抖音 CDN 加载（浏览器上下文通常能绕过服务端拉不到的防盗链）。
+// 把任意字符串安全转成 YAML 双引号标量：转义反斜杠/双引号，换行与多余空白压成空格。
+// 抖音标题常含 #、@、换行等 YAML 不安全字符，不引号化会让整段 front matter 解析失败。
+function yamlQuote(s) {
+  if (s == null) s = "";
+  s = String(s).replace(/\r/g, " ").replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${s}"`;
+}
+
 function buildMd(title, vid, posterRel) {
   const { datetime } = todayStamp();
   const poster = posterRel ? `poster: ${posterRel}\n` : "";
   return (
     `---\n` +
     `layout: video\n` +
-    `title: ${title}\n` +
+    `title: ${yamlQuote(title)}\n` +
     `date: ${datetime}\n` +
     `douyin_id: ${vid}\n` +
     `tags:\n  - douyin\n` +
