@@ -18,7 +18,7 @@
 </head>
 <body>
   <h1>抖音收藏封面导出 · 生成器</h1>
-  <p>把抖音收藏页视频的 <code>视频ID|封面URL</code> 导出成 <code>covers.txt</code>，发给我即可补全 marginalia 仍缺封面的视频。脚本 v1.2 已内置「焦点模式」，会<strong>只盯着当前缺失的那批 id</strong> 抓取，最不易漏。</p>
+  <p>把抖音收藏页视频的 <code>视频ID|封面URL</code> 导出成 <code>covers.txt</code>，发给我即可补全 marginalia 仍缺封面的视频。脚本 v1.4 已内置「焦点模式」，会<strong>只盯着当前缺失的那批 id（当前 77 个）边滚边抓</strong>，最不易漏。</p>
 
   <div class="note" style="border-left-color:#7a2e2e">
     <strong>💡 推荐方案：用户脚本按钮版（彻底避免「点击没反应」）</strong>
@@ -26,8 +26,8 @@
     <ol>
       <li>Chrome 网上应用店搜 <strong>Tampermonkey</strong> 安装（已装则跳过）。</li>
       <li>点下面「📥 下载用户脚本」用 Tampermonkey 打开即自动提示安装；或点「📋 复制用户脚本」后在 Tampermonkey「新建脚本」里粘贴保存。</li>
-      <li>打开抖音收藏页（<code>douyin.com/user/self?showTab=favorite_collection</code>），右下角会出现三个按钮。其中 <strong>「🎯 导出缺失封面」</strong> 是<strong>首选</strong>——它内置了当前站里缺失封面的视频 id 清单，点一下会自动滚到底、只为这批 id 逐张等懒加载抓封面，右下角小面板实时显示「已匹配 X/N」。</li>
-      <li>点 <strong>「🎯 导出缺失封面」</strong> 后稍等（约 1–2 分钟，要逐张等加载），结束会弹窗告诉你「匹配到 M / N 个并导出」。若 M&lt;N，说明有 N−M 个视频已不在当前收藏夹，那部分无法补。</li>
+      <li>打开抖音收藏页（<code>douyin.com/user/self?showTab=favorite_collection</code>），右下角会出现三个按钮。其中 <strong>「🎯 导出缺失封面」</strong> 是<strong>首选</strong>——它内置了当前站里缺失封面的视频 id 清单（当前 77 个），点一下会自动滚到底、边滚边为这批 id 抓封面，右下角小面板实时显示「已抓 X/77 · 剩余 Y」。</li>
+      <li>点 <strong>「🎯 导出缺失封面」</strong> 后稍等（约 1–3 分钟，脚本边滚边抓），结束会弹窗告诉你「匹配到 M / 77 个并导出」。若 M&lt;77，说明有 77−M 个视频已不在当前收藏夹，那部分无法补。</li>
       <li>把下载的 <code>covers.txt</code> 发给我即可（里面只含匹配到的缺失视频）。</li>
       <li class="hint">备用：若想导出全部，点「📜 滚动并导出」；若只导当前屏幕，点「导出封面」。</li>
     </ol>
@@ -61,7 +61,7 @@
     </ol>
   </div>
 
-  <p class="hint">v1.3 关键变化：自动滚动不再「滚 3 轮就停」，而是<strong>一直滚到视频卡片数不再增加才停</strong>，右下角状态面板会实时显示「已加载 N 张卡片」。请优先用 <strong>「🎯 导出缺失封面」</strong>（焦点模式，已内置待补 id 清单）——点完后<strong>盯着状态面板，等它显示「已加载」的数字稳定不变、再开始匹配</strong>，这能确保收藏夹里的卡片全部进了 DOM、不漏抓。封面会下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。</p>
+  <p class="hint">v1.4 关键变化：焦点模式改为<strong>「边滚边抓」</strong>——点 <strong>「🎯 导出缺失封面」</strong>后，脚本持续滚动收藏页（自动命中抖音内部滚动容器），每加载一批卡片就实时抓取匹配目标的封面，右下角状态面板显示「已抓 X/77 · 剩余 Y」。滚到底后自动下载 <code>covers.txt</code> 并弹窗报告匹配数。<strong>无需手动滚、无需等数字稳定</strong>。封面会下载到本地 <code>assets/img/covers/</code> 再引用，避免热链失效。</p>
 
 <script>
 // 书签代码即上方按钮的 href（浏览器已自动解码），直接用于复制
