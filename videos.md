@@ -336,7 +336,8 @@ wide: true
   var doneEl = document.getElementById('trDone');
   var totalEl = document.getElementById('trTotal');
   var toggleBtn = document.getElementById('trToggle');
-  var KEY = 'trProgressCollapsed';
+  // 升版键名：忽略旧版「默认展开」遗留的 localStorage 状态，统一回到默认折叠
+  var KEY = 'trProgressCollapsed_v2';
   var CYCLE = 120; // 守护进程每 120s 一轮
   // 进度以构建时快照为准（直接数视频页真实含文字稿块，准确）；
   // 不用 /stats 的 transcribed 覆盖 done —— 那是 KV 只增不删的 tr:<id> 集合，会虚高。
