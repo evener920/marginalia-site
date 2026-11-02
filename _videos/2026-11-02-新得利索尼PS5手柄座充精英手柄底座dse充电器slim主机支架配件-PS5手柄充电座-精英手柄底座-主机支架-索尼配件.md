@@ -3,6 +3,7 @@ layout: video
 title: "新得利索尼PS5手柄座充精英手柄底座dse充电器slim主机支架配件 #PS5手柄充电座 #精英手柄底座 #主机支架 #索尼配件 #手柄充电器"
 date: 2026-11-02 09:48:38 +08:00
 douyin_id: 7581298180134948130
+poster: https://p3-pc-sign.douyinpic.com/tos-cn-i-dy/00e852455ce44573b977238f542e7ac3~tplv-dy-resize-origshort-autoq-75:330.jpeg?lk3s=138a59ce&x-expires=2108977200&x-signature=ZCiX72dQC5RLPkmTBdpNZ%2BXbBCo%3D&from=327834062&s=PackSourceEnum_AWEME_DETAIL&se=false&sc=cover&biz_tag=pcweb_cover&l=20261102194946AFBEF9A57AD596A195B8
 tags:
   - douyin
 ---
