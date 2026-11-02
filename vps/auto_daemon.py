@@ -20,6 +20,7 @@ import datetime
 import urllib.request
 import urllib.error
 import concurrent.futures
+import threading
 
 import batch_transcribe as bt
 
@@ -27,6 +28,14 @@ API_ROOT = "/opt/douyin-api"
 RAW = "https://raw.githubusercontent.com/evener920/marginalia-site/main"
 WORKER = "https://marginalia-douyin-ingest.evener920.workers.dev/transcript"
 WORKER_REPORT = "https://marginalia-douyin-ingest.evener920.workers.dev/skip-report"
+# 封面补取：经 VPS nginx 反代访问 Worker（勿直接指 workers.dev，遵循站点链路约定）。
+COVER_WORKER = "https://transcribe.201573.xyz/douyin-ingest"
+# DTK 解析 API 只在 VPS 本地，封面兜底由本守护进程用本地 DTK 解析后回传 Worker 写回视频页。
+DTK = "http://127.0.0.1:8000/api/v1/parse"
+try:
+    DTK_KEY = open(f"{API_ROOT}/api_key.txt").read().strip()
+except Exception:
+    DTK_KEY = ""
 TOKEN_FILE = pathlib.Path(f"{API_ROOT}/transcript_token.txt")
 FAV = pathlib.Path(f"{API_ROOT}/fav_order.json")
 INDEX = pathlib.Path(f"{API_ROOT}/douyin_index.json")
@@ -107,6 +116,68 @@ def report_status(transcribed, skipped, token):
         log(f"上报进度：已转写 {transcribed} · 跳过 {skipped} -> http{st}")
     except Exception as e:
         log(f"上报进度失败: {e}")
+
+
+def http_get_json(url, timeout=30):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def dtk_cover(vid):
+    """用本地 DTK 解析 API 拿视频封面直链；失败返回 None。"""
+    u = f"https://www.douyin.com/video/{vid}"
+    req = urllib.request.Request(
+        f"{DTK}?wait=30",
+        data=json.dumps({"url": u}).encode(),
+        headers={"Content-Type": "application/json", "X-API-Key": DTK_KEY},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=45) as r:
+            d = json.load(r)
+        covs = (d.get("data", {}).get("media", {}).get("covers")) or []
+        if covs:
+            return covs[0].get("url")
+    except Exception as e:
+        log(f"dtk_cover {vid} 失败: {e}")
+    return None
+
+
+def cover_cycle(token):
+    """拉取待补封面列表，逐个用本地 DTK 解析后回传 Worker 写回视频页。"""
+    try:
+        ids = http_get_json(f"{COVER_WORKER}/cover-todo?t={token}").get("ids", [])
+    except Exception as e:
+        log(f"cover-todo 拉取失败: {e}")
+        return
+    if not ids:
+        return
+    log(f"封面待补 {len(ids)} 条")
+    done = 0
+    for vid in ids[:8]:  # 每轮最多 8 条，避免阻塞太久
+        cover = dtk_cover(vid)
+        if not cover:
+            continue
+        try:
+            st, resp = http_post_json(f"{COVER_WORKER}/cover?t={token}", {"id": vid, "url": cover})
+            if st == 200 and resp.get("status") in ("ok", "skipped"):
+                done += 1
+            else:
+                log(f"  cover {vid} -> http{st} {resp}")
+        except Exception as e:
+            log(f"  cover {vid} 失败: {e}")
+    if done:
+        log(f"封面补回 {done} 条")
+
+
+def cover_loop(token):
+    while True:
+        try:
+            cover_cycle(token)
+        except Exception as e:
+            log(f"cover_loop error: {e}")
+        time.sleep(120)
 
 
 def run_transcribe(todo, fails, skip):
@@ -212,6 +283,8 @@ def main():
         log("缺少 transcript token，退出")
         raise SystemExit(1)
     last = None  # 仅当 (已转写, 跳过) 变化时才上报，避免每轮空打 Worker
+    # 封面补取：独立线程，每 120s 拉一次待补列表回填（不阻塞转写主循环）
+    threading.Thread(target=cover_loop, args=(token,), daemon=True).start()
     while True:
         try:
             sent_n, empty_n = loop_once(token)  # 第二个返回值 = 空稿数 = 不可自动转写数

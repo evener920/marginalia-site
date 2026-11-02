@@ -212,6 +212,7 @@ const CHUNK = 20; // 每批提交条数
 // 处理一批（上限 CHUNK 条）：并发建 blob → 建树 → 提交 → 更新 ref，并把索引写进本次树。
 async function processChunk(env, chunk, index, baseCommitSha, date) {
   const baseTreeSha = await getBaseTreeSha(env, baseCommitSha);
+  const needCover = []; // 书签未传封面的视频，入队待异步补（VPS 守护进程用本地 DTK 解析后回填）
 
   // 每条视频独立并发：拉封面 + 建视频页 blob
   const tasks = chunk.map(async (e) => {
@@ -226,6 +227,7 @@ async function processChunk(env, chunk, index, baseCommitSha, date) {
     const coverRaw = (e.cover || "").toString().trim();
     if (coverRaw.startsWith("//")) posterRel = "https:" + coverRaw;
     else if (/^https?:\/\//.test(coverRaw)) posterRel = coverRaw;
+    if (!posterRel) needCover.push(vid); // 无封面 → 入队待补
     const mdSha = await createBlob(env, utf8ToBase64(buildMd(title, vid, posterRel)));
     const parts = [{ path: `_videos/${fname}`, mode: "100644", type: "blob", sha: mdSha }];
     index[vid] = fname; // 写入索引（内存），后续批次据此去重
@@ -233,6 +235,9 @@ async function processChunk(env, chunk, index, baseCommitSha, date) {
   });
 
   const results = await Promise.all(tasks);
+  if (needCover.length) {
+    await Promise.all(needCover.map((v) => env.STATS.put("cover_todo:" + v, v)));
+  }
   const treeEntries = results.filter(Boolean).flat();
   if (treeEntries.length === 0) return baseCommitSha; // 整批都跳过了
 
@@ -526,6 +531,91 @@ export default {
           JSON.stringify({ status: "error", error: String(err.message || err) }),
           { status: 500, headers: { "Content-Type": "application/json" } }
         );
+      }
+    }
+
+    if (url.pathname === "/cover-todo" && request.method === "GET") {
+      // 仅限持有共享 token 的 VPS 守护进程调用：返回待补封面视频 id 列表。
+      const t = url.searchParams.get("t");
+      if (!t || t !== env.TRANSCRIPT_TOKEN) {
+        return new Response(JSON.stringify({ status: "unauthorized" }), {
+          status: 401, headers: { "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const listed = await env.STATS.list({ prefix: "cover_todo:" });
+        const ids = listed.keys.map((k) => k.name.replace("cover_todo:", ""));
+        return new Response(JSON.stringify({ ids }), {
+          headers: { "Content-Type": "application/json", ...cors() },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: String(err.message || err) }), {
+          status: 500, headers: { "Content-Type": "application/json", ...cors() },
+        });
+      }
+    }
+
+    if (url.pathname === "/cover" && request.method === "POST") {
+      // 仅限持有共享 token 的 VPS 守护进程调用：把解析出的封面 URL 写回视频页 front matter。
+      const t = url.searchParams.get("t");
+      if (!t || t !== env.TRANSCRIPT_TOKEN) {
+        return new Response(JSON.stringify({ status: "unauthorized" }), {
+          status: 401, headers: { "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const body = await request.json();
+        const vid = String(body.id || "");
+        const coverUrl = String(body.url || "");
+        if (!/^\d{15,}$/.test(vid) || !/^https?:\/\//.test(coverUrl)) {
+          return new Response(JSON.stringify({ status: "badparams" }), {
+            status: 400, headers: { "Content-Type": "application/json" },
+          });
+        }
+        const idx = await getIndex(env);
+        const fname = idx[vid];
+        if (!fname) {
+          await env.STATS.delete("cover_todo:" + vid); // id 不在索引，清队列避免反复重试
+          return new Response(JSON.stringify({ status: "noindex" }), {
+            status: 404, headers: { "Content-Type": "application/json" },
+          });
+        }
+        const gr = await ghFetch(env, `/contents/_videos/${encodeURIComponent(fname)}?ref=${env.BRANCH}`);
+        if (!gr.ok) {
+          return new Response(JSON.stringify({ status: "fetchfail", code: gr.status }), {
+            status: 502, headers: { "Content-Type": "application/json" },
+          });
+        }
+        const gj = await gr.json();
+        const sha = gj.sha;
+        const txt = Buffer.from(gj.content, "base64").toString("utf8");
+        if (/^poster:/m.test(txt)) {
+          // 已有封面（可能手动补过），直接清队列
+          await env.STATS.delete("cover_todo:" + vid);
+          return new Response(JSON.stringify({ status: "skipped" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const newTxt = txt.replace(/^(douyin_id:\s*\S+\n)/m, `$1poster: ${coverUrl}\n`);
+        const pr = await ghFetch(env, `/contents/_videos/${encodeURIComponent(fname)}`, "PUT", {
+          message: `content(douyin): 自动补封面 (via douyin-ingest)`,
+          content: utf8ToBase64(newTxt),
+          sha,
+          branch: env.BRANCH,
+        });
+        if (!pr.ok) {
+          return new Response(JSON.stringify({ status: "putfail", code: pr.status }), {
+            status: 502, headers: { "Content-Type": "application/json" },
+          });
+        }
+        await env.STATS.delete("cover_todo:" + vid);
+        return new Response(JSON.stringify({ status: "ok" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ status: "error", error: String(err.message || err) }), {
+          status: 500, headers: { "Content-Type": "application/json" },
+        });
       }
     }
 
