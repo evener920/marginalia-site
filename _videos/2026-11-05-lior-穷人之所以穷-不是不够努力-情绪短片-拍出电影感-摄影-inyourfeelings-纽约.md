@@ -9,3 +9,8 @@ poster: https://p3-pc-sign.douyinpic.com/tos-cn-i-dy/baa2f11402184ae5bc68651bb05
 ---
 
 （正文可选：可在此写几句推荐语、金句摘录等。）
+<!-- transcript-block -->
+<details class="transcript">
+  <summary>Transcript · 文字稿</summary>
+  <div class="transcript-text">你记住，穷人之所以穷，不是不够努力，而是跟他没关系的事情。他占了一脑子啥都懂，跟自己有关的事儿，啥都不懂，赚钱的事儿，一点也不思考，浪费时间的事儿，哪里都有。它垃圾堆里一找一个准有价值的地方，到死也看不见影。</div>
+</details>
