@@ -9,3 +9,8 @@ poster: https://p3-pc-sign.douyinpic.com/tos-cn-i-dy/3a18766e37df49ba93fd7dbe422
 ---
 
 （正文可选：可在此写几句推荐语、金句摘录等。）
+<!-- transcript-block -->
+<details class="transcript">
+  <summary>Transcript · 文字稿</summary>
+  <div class="transcript-text">他们曾誓言扫灭匈奴，不顾自身安危，5000名身穿锦袍的精锐，最终全部丧身胡地。可是有谁在乎那无定河边的累累白骨呢？他们还是春闺里妻子日思夜想，梦中相会的心上人啊。</div>
+</details>
