@@ -28,17 +28,27 @@
   <p>
     <a class="btn" id="bm" href="#">📌 抖音收藏同步</a>
     <button id="copy" class="btn" style="background:#7a2e2e">📋 复制书签代码</button>
-    <span class="hint">推荐用「复制」+ 手动添加书签（见下方说明）；拖拽在 Chrome 会被剥掉 javascript: 协议而失效。</span>
+    <span class="hint">增量同步：只抓本次新增。推荐用「复制」+ 手动添加书签（见下方说明）；拖拽在 Chrome 会被剥掉 javascript: 协议而失效。</span>
   </p>
 
-  <p><label for="code">② 书签代码（复制后手动添加书签用）</label>
+  <p>
+    <a class="btn" id="bmFull" href="#">📌 抖音收藏完整同步</a>
+    <button id="copyFull" class="btn" style="background:#7a2e2e">📋 复制完整同步书签</button>
+    <span class="hint"><strong>首次补齐历史收藏请用这个</strong>：它会扫完整收藏列表，把历史上没收录进去的老视频也一起补上。普通同步在「已收录边界」就停，补不齐。</span>
+  </p>
+
+  <p><label for="code">② 增量同步书签代码（复制后手动添加书签用）</label>
   <textarea id="code" rows="4" readonly style="width:100%;font:12px/1.5 monospace;padding:9px 11px;border:1px solid #c9a86a;border-radius:8px;box-sizing:border-box;word-break:break-all"></textarea></p>
+
+  <p><label for="codeFull">③ 完整同步书签代码（补齐历史未收录用）</label>
+  <textarea id="codeFull" rows="4" readonly style="width:100%;font:12px/1.5 monospace;padding:9px 11px;border:1px solid #c9a86a;border-radius:8px;box-sizing:border-box;word-break:break-all"></textarea></p>
 
   <div class="note">
     <strong>用法：</strong>
     <ol>
-      <li>打开抖音收藏夹页面（<code>douyin.com/user/self?showTab=favorite_collection</code>）。</li>
-      <li>直接点收藏夹栏的「抖音收藏同步」即可——书签会先问站点「已收录哪些」，然后<strong>只滚动到本次新增的内容、自动跳过已收录的</strong>，不用手动滚，也不用每次都翻完全部列表。</li>
+    <li>打开抖音收藏夹页面（<code>douyin.com/user/self?showTab=favorite_collection</code>）。</li>
+    <li><strong>首次补齐历史收藏</strong>：用「📌 抖音收藏完整同步」书签（不是普通同步）。它会扫完整列表，把历史上没收录进去的老视频一并补上；普通同步在「已收录边界」就停，补不齐。</li>
+    <li>直接点收藏夹栏的「抖音收藏同步」即可——书签会先问站点「已收录哪些」，然后<strong>只滚动到本次新增的内容、自动跳过已收录的</strong>，不用手动滚，也不用每次都翻完全部列表。</li>
       <li>页面顶部会显示「已扫描 N 条，自动跳过已收录内容，滚动到新内容…」，碰到已收录的边界就停，自动提取新内容并推送。</li>
       <li>弹出「发现 N 条新内容，已推送」即成功，约 1 分钟后刷新站点即可看到。</li>
     </ol>
@@ -70,11 +80,12 @@
   <p class="hint">注：自动滚动期间不要手动滚动或切换标签页，以免打断加载。若抖音页面启用了严格 CSP 拦截跨域请求，书签会提示失败——此时改用「抖音封面导出」书签导出 <code>covers.txt</code> 发给我跑脚本即可（半自动兜底）。</p>
 
 <script>
-function buildBookmarklet(worker) {
+function buildBookmarklet(worker, full) {
   // 注意：下面 this 字符串里的双引号会被 encodeURIComponent 转义，安全。
   return [
     "(function(){",
     "var W='"+worker+"';",
+    "var FULL="+(full?1:0)+";",
     "if(!W){alert('书签未配置 Worker 地址，请在生成页填入。');return;}",
     "function qa(s){return [].slice.call(document.querySelectorAll(s));}",
     "var store={}, order=[], known=null, knownStreak=0, totalSeen=0;",
@@ -126,7 +137,7 @@ function buildBookmarklet(worker) {
     "  nudge();",
     "  qa('button,a').forEach(function(b){var t=(b.textContent||'').replace(/\\s/g,'');if(t.indexOf('加载更多')>=0||t.indexOf('查看全部')>=0||t.indexOf('点击加载')>=0){try{b.click();}catch(e){}}});",
     "}",
-    "var tries=0, stable=0, MAX=120, last=0;",
+    "var MAX=FULL?300:120, tries=0, stable=0, last=0;",
     "function step(){",
     "  collect();var total=Object.keys(store).length;",
     "  setStatus('已扫描 '+total+(known?(' 条，自动跳过已收录内容，滚动到新内容…'):' 条（首次全量同步）')+'（'+(tries+1)+'）');",
@@ -136,7 +147,7 @@ function buildBookmarklet(worker) {
     "    tries++;",
     "    if(now>last){stable=0;}else{stable++;}",
     "    last=now;",
-    "    if(knownStreak>=10||stable>=3||tries>=MAX){finish();}else{step();}",
+    "    if((!FULL&&knownStreak>=10)||stable>=3||tries>=MAX){finish();}else{step();}",
     "  }, 900);",
     "}",
     "function finish(){",
@@ -170,19 +181,25 @@ function buildBookmarklet(worker) {
 
 var inp = document.getElementById('worker');
 var bm = document.getElementById('bm');
+var bmFull = document.getElementById('bmFull');
 function refresh() {
   var w = inp.value.trim().replace(/\/+$/, '');
-  var code = buildBookmarklet(w);
+  var code = buildBookmarklet(w, false);
   bm.href = 'javascript:' + encodeURIComponent(code);
   document.getElementById('code').value = 'javascript:' + code.replace(/\n/g, ' ');
+  var codeFull = buildBookmarklet(w, true);
+  bmFull.href = 'javascript:' + encodeURIComponent(codeFull);
+  document.getElementById('codeFull').value = 'javascript:' + codeFull.replace(/\n/g, ' ');
 }
 inp.addEventListener('input', refresh);
 refresh();
 
 // 在生成页上点 📌 按钮不要直接执行代码（会误报「没找到视频」），改为引导用复制方式安装
-bm.addEventListener('click', function (e) {
-  e.preventDefault();
-  alert('不要在此页点击这个按钮。\n请点「📋 复制书签代码」，然后到抖音收藏页点击你添加的书签。');
+[bm, bmFull].forEach(function (el) {
+  el.addEventListener('click', function (e) {
+    e.preventDefault();
+    alert('不要在此页点击这个按钮。\n请点「📋 复制书签代码」，然后到抖音收藏页点击你添加的书签。');
+  });
 });
 
 var copyBtn = document.getElementById('copy');
@@ -201,6 +218,26 @@ copyBtn.addEventListener('click', function () {
     ta.select(); document.execCommand('copy'); done();
   }
 });
+
+// 复制「完整同步」书签代码（补齐历史未收录用）
+var copyFullBtn = document.getElementById('copyFull');
+if (copyFullBtn) {
+  copyFullBtn.addEventListener('click', function () {
+    var ta = document.getElementById('codeFull');
+    var txt = ta.value;
+    if (!txt || txt === 'javascript:') { alert('请先在上方填入 Worker 地址。'); return; }
+    function done() {
+      var o = copyFullBtn.textContent;
+      copyFullBtn.textContent = '✓ 已复制，去收藏夹右键→添加网页→粘贴';
+      setTimeout(function () { copyFullBtn.textContent = o; }, 2600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done).catch(function () { ta.select(); document.execCommand('copy'); done(); });
+    } else {
+      ta.select(); document.execCommand('copy'); done();
+    }
+  });
+}
 
 // 复制用户脚本内容（供 Tampermonkey 安装，避免 javascript: 书签被 Chrome 剥协议）
 var copyUserBtn = document.getElementById('copyUser');

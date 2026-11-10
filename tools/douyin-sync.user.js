@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         抖音收藏同步 · marginalia
 // @namespace    https://marginalia.201573.xyz
-// @version      1.4
-// @description  在抖音收藏页注入可拖动的「抖音收藏同步」浮动按钮：点击立即反馈、扫描实时可见、自动跳过已收录、自动拉文字稿；用 GM_xmlhttpRequest 绕过抖音页面 CSP 拦截，结束弹出明确总结。
+// @version      1.5
+// @description  在抖音收藏页注入可拖动的「抖音收藏同步」浮动按钮（增量：只抓新增）+「抖音完整同步」按钮（完整扫描：扫完整收藏列表，补齐历史未收录）。自动跳过已收录、自动拉文字稿；用 GM_xmlhttpRequest 绕过抖音页面 CSP 拦截，结束弹出明确总结。
 // @match        https://www.douyin.com/*
 // @match        https://douyin.com/*
 // @connect      *
@@ -51,7 +51,8 @@
     });
   }
 
-  function runSync(btn) {
+  function runSync(btn, mode) {
+    mode = mode || 'incremental';
     if (btn.dataset.busy === '1') return; // 防重复点击
     btn.dataset.busy = '1';
     btn.textContent = '同步中 ⏳';
@@ -144,17 +145,20 @@
       });
     }
 
-    var tries = 0, stable = 0, MAX = 120, last = 0;
+    var isFull = (mode === 'full');
+    var tries = 0, stable = 0, MAX = isFull ? 300 : 120, last = 0;
     function step() {
       collect(); var total = Object.keys(store).length;
-      setStatus('已扫描 ' + total + (known ? (' 条，自动跳过已收录内容，滚动到新内容…') : ' 条（正在确认已收录，先扫描）') + '（第 ' + (tries + 1) + ' 轮）');
+      var modeHint = isFull ? ' 完整扫描模式：扫完整收藏列表（不会在已知边界停）…' : (known ? (' 条，自动跳过已收录内容，滚动到新内容…') : ' 条（正在确认已收录，先扫描）');
+      setStatus('已扫描 ' + total + modeHint + '（第 ' + (tries + 1) + ' 轮）');
       scrollAll();
       setTimeout(function () {
         collect(); var now = Object.keys(store).length;
         tries++;
         if (now > last) { stable = 0; } else { stable++; }
         last = now;
-        if (knownStreak >= 10 || stable >= 3 || tries >= MAX) { finish(); } else { step(); }
+        // 增量模式：连续命中 10 个已收录即判定到边界、停；完整模式忽略此条件，扫到底
+        if ((!isFull && knownStreak >= 10) || stable >= 3 || tries >= MAX) { finish(); } else { step(); }
       }, 900);
     }
 
@@ -219,13 +223,19 @@
   }
 
   // 注入可拖动的浮动按钮（抖音是 SPA，轮询 + MutationObserver 兜底）
+  // 两个按钮：增量同步（只抓新增）/ 完整同步（扫完整列表，补齐历史未收录）
   function injectButton() {
-    if (document.getElementById('dySyncBtn')) return;
+    makeBtn('dySyncBtn', '抖音收藏同步', 84, 'incremental');
+    makeBtn('dySyncBtnFull', '抖音完整同步', 140, 'full');
+  }
+
+  function makeBtn(id, text, bottom, mode) {
+    if (document.getElementById(id)) return;
     if (!document.body) return;
     var b = document.createElement('button');
-    b.id = 'dySyncBtn';
-    b.textContent = '抖音收藏同步';
-    b.style.cssText = 'position:fixed;right:16px;bottom:84px;z-index:2147483647;background:#7a2e2e;color:#fff;border:none;padding:11px 16px;border-radius:10px;font:14px/1.4 sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35);user-select:none;touch-action:none';
+    b.id = id;
+    b.textContent = text;
+    b.style.cssText = 'position:fixed;right:16px;bottom:' + bottom + 'px;z-index:2147483647;background:#7a2e2e;color:#fff;border:none;padding:11px 16px;border-radius:10px;font:14px/1.4 sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35);user-select:none;touch-action:none';
 
     // 拖动 vs 点击 区分：移动超过 4px 视为拖动，否则视为点击
     var down = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
@@ -246,7 +256,7 @@
     });
     b.addEventListener('pointerup', function (e) {
       if (!down) return; down = false;
-      if (!moved) { try { runSync(b); } catch (err) { alert('同步出错：' + err.message); } }
+      if (!moved) { try { runSync(b, mode); } catch (err) { alert('同步出错：' + err.message); } }
     });
 
     document.body.appendChild(b);
