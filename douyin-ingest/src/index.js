@@ -360,6 +360,48 @@ async function writeDataFiles(env, newEntries, syncEntry) {
   return newCommit;
 }
 
+// 按书签扫描到的「抖音真实收藏顺序」整体重排 fav_order。
+// ids：抖音收藏页 DOM 从上到下的 id 顺序（顶部 = 最新收藏）。扫描到但已在原
+// fav_order 里缺失的（如已从抖音删除但保留在站内）追加到末尾、保持原相对顺序。
+// 这样 marginalia 的顺序就与你在抖音里看到的收藏顺序完全一致。
+async function rewriteFavOrder(env, ids) {
+  const refR = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`);
+  if (!refR.ok) throw new Error(`读分支失败: ${refR.status}`);
+  const baseSha = (await refR.json()).object.sha;
+  const baseTreeSha = await getBaseTreeSha(env, baseSha);
+  const existing = (await readJson(env, "_data/douyin_fav_order.json")) || {};
+  const idSet = new Set(ids);
+  const favOrder = {};
+  // 扫描到的按位置 0,1,2... 排（值越小越靠前 = 顶部 = 最新收藏）
+  ids.forEach((vid, i) => { if (vid) favOrder[vid] = i; });
+  // 未在扫描列表但原已存在的（已删收藏仍保留）：追加到底部，保持原相对顺序
+  const leftover = Object.keys(existing)
+    .filter((v) => !idSet.has(v))
+    .sort((a, b) => (existing[a] - existing[b]));
+  let k = ids.length;
+  leftover.forEach((vid) => { favOrder[vid] = k++; });
+  const sha = await createBlob(env, utf8ToBase64(JSON.stringify(favOrder, null, 2)));
+  const treeR = await ghFetch(env, `/git/trees`, "POST", {
+    base_tree: baseTreeSha,
+    tree: [{ path: "_data/douyin_fav_order.json", mode: "100644", type: "blob", sha }],
+  });
+  if (!treeR.ok) throw new Error(`建树失败: ${treeR.status}`);
+  const treeSha = (await treeR.json()).sha;
+  const commitR = await ghFetch(env, `/git/commits`, "POST", {
+    message: `data: 按抖音收藏顺序重排 fav_order (via douyin-ingest)`,
+    tree: treeSha,
+    parents: [baseSha],
+  });
+  if (!commitR.ok) throw new Error(`建提交失败: ${commitR.status}`);
+  const newCommit = (await commitR.json()).sha;
+  const refR2 = await ghFetch(env, `/git/refs/heads/${env.BRANCH}`, "PATCH", {
+    sha: newCommit,
+    force: false,
+  });
+  if (!refR2.ok) throw new Error(`更新分支失败: ${refR2.status}`);
+  return { status: "ok", total: Object.keys(favOrder).length };
+}
+
 async function processAll(env, toProcess, index, startSha) {
   const { date } = todayStamp();
   let baseSha = startSha;
@@ -616,6 +658,37 @@ export default {
         return new Response(JSON.stringify({ status: "error", error: String(err.message || err) }), {
           status: 500, headers: { "Content-Type": "application/json" },
         });
+      }
+    }
+
+    if (url.pathname === "/reorder" && request.method === "POST") {
+      // 仅限持有共享 token 的书签完整同步调用：用抖音真实扫描顺序整体重写 fav_order。
+      const t = url.searchParams.get("t");
+      const REORDER_T = env.REORDER_TOKEN || "mg-reorder-7f3a";
+      if (!t || t !== REORDER_T) {
+        return new Response(JSON.stringify({ status: "unauthorized" }), {
+          status: 401, headers: { "Content-Type": "application/json", ...cors() },
+        });
+      }
+      try {
+        const body = await request.json();
+        const ids = Array.isArray(body.ids)
+          ? body.ids.map(String).filter((x) => /^\d{15,}$/.test(x))
+          : [];
+        if (ids.length === 0) {
+          return new Response(JSON.stringify({ status: "bad_request" }), {
+            status: 400, headers: { "Content-Type": "application/json", ...cors() },
+          });
+        }
+        const res = await rewriteFavOrder(env, ids);
+        return new Response(JSON.stringify(res), {
+          headers: { "Content-Type": "application/json", ...cors() },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ status: "error", error: String(err.message || err) }),
+          { status: 500, headers: { "Content-Type": "application/json", ...cors() } }
+        );
       }
     }
 

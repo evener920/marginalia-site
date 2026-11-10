@@ -207,9 +207,29 @@
           (updated ? ('• 更新顺序/封面：' + updated + ' 条\n') : '') +
           '\n接下来会自动发生：\n' +
           '1. 视频页约 1–3 分钟上线（Worker 后台建页并部署）\n' +
-          '2. 文字稿由守护进程在几分钟内自动转写并回填，无需再操作';
+          '2. 文字稿由守护进程在几分钟内自动转写并回填，无需再操作' +
+          (isFull ? '\n3. 已按抖音真实收藏顺序整体重排，刷新即生效' : '');
         setStatus('已接收 ' + queued + ' 条（跳过 ' + (skippedKnown + skipped) + ' 条已收录），视频页约 1-3 分钟上线，文字稿自动回填');
-        alert(summary);
+        // 完整同步：额外把抖音真实收藏顺序（order 按 DOM 从上到下）回传，整体重排 fav_order
+        var reorderPromise = Promise.resolve();
+        if (isFull && order.length) {
+          setStatus('已接收 ' + queued + ' 条，正在按抖音真实收藏顺序重排…');
+          reorderPromise = gmFetch(W + '/reorder?t=mg-reorder-7f3a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: order }),
+          }).then(function (rr) {
+            var dd = rr.data || {};
+            if (dd.status === 'ok') {
+              setStatus('✅ 完整同步 + 顺序重排完成（共 ' + (dd.total || '') + ' 条已按抖音收藏顺序）');
+            } else {
+              setStatus('同步完成，但顺序重排返回：' + (dd.status || '未知') + '（可稍后重试完整同步）');
+            }
+          }).catch(function (e) {
+            setStatus('同步完成，但顺序重排失败：' + e.message + '（可稍后重试完整同步）');
+          });
+        }
+        return reorderPromise.then(function () { alert(summary); });
       }).catch(function (e) {
         var msgErr = '❌ 同步失败\n\n' + e.message + '\n\n请稍后重试；若持续失败，可能是网络环境限制了对外请求。';
         setStatus('同步失败：' + e.message);
