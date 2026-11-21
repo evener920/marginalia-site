@@ -9,3 +9,8 @@ poster: https://p3-pc-sign.douyinpic.com/tos-cn-i-dy/8be69e53f1794652b8c08bb2fbc
 ---
 
 （正文可选：可在此写几句推荐语、金句摘录等。）
+<!-- transcript-block -->
+<details class="transcript">
+  <summary>Transcript · 文字稿</summary>
+  <div class="transcript-text">那我请问一下这个天底下多少人在过着自己喜欢的生活呢？有多少人随心所欲太贵了，我随心所欲了之后，我身边所有的人、我的家人、父母、孩子，我的爱人就是全都要付出代价就好。现在我牺牲我自己换你们开心，这就是我爱你们的方式啊。</div>
+</details>
